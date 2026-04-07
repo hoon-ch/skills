@@ -1,0 +1,4 @@
+interface:
+  display_name: "My Skill"
+  short_description: "Replace with a short human-facing summary"
+  default_prompt: "Use $my-skill for the task described by the user."

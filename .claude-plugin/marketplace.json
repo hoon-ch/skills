@@ -1,0 +1,22 @@
+{
+  "name": "hoon-ch-skills",
+  "owner": {
+    "name": "hoon-ch",
+    "email": "hun9211@gmail.com"
+  },
+  "metadata": {
+    "description": "skills.sh-first tool skill registry maintained by hoon-ch",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "all-skills",
+      "description": "All published skills for demos, testing, and full installs",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/plane-api"
+      ]
+    }
+  ]
+}
