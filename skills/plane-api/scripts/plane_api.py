@@ -231,6 +231,9 @@ WORKFLOW_SPECS = {
     "project-scan": {
         "kind": "scan",
     },
+    "pages-probe": {
+        "kind": "pages_probe",
+    },
 }
 
 
@@ -1011,12 +1014,151 @@ def workflow_project_scan(args, settings, entries):
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
 
 
+def probe_get(settings, label, path, query=None):
+    try:
+        status, body, headers = api_request(settings, "GET", path, query=query)
+        return {
+            "label": label,
+            "method": "GET",
+            "path": path,
+            "status": status,
+            "body": body,
+            "rate_limit": rate_limit_info(headers),
+        }
+    except PlaneApiError as exc:
+        payload = {
+            "label": label,
+            "method": "GET",
+            "path": path,
+            "status": exc.status,
+            "reason": exc.reason,
+            "body": exc.body,
+        }
+        if exc.status == 404:
+            payload["unavailable_on_deployment"] = True
+        return payload
+
+
+def workflow_pages_probe(args, settings, entries):
+    params = collect_known_params(args, settings)
+    project_id = params.get("project_id")
+    if not project_id:
+        raise SystemExit("--project-id is required")
+
+    workspace_slug = params["workspace_slug"]
+    project_path = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/"
+    workspace_pages_path = f"/api/v1/workspaces/{workspace_slug}/pages/"
+    project_pages_path = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/pages/"
+    app_project_pages_path = f"/api/workspaces/{workspace_slug}/projects/{project_id}/pages/"
+
+    probes = [
+        probe_get(settings, "project", project_path),
+        probe_get(
+            settings,
+            "workspace_pages_collection",
+            workspace_pages_path,
+            query={"per_page": args.per_page or 5},
+        ),
+        probe_get(
+            settings,
+            "project_pages_collection",
+            project_pages_path,
+            query={"per_page": args.per_page or 5},
+        ),
+        probe_get(
+            settings,
+            "app_project_pages_collection",
+            app_project_pages_path,
+            query={"per_page": args.per_page or 5},
+        ),
+    ]
+
+    if params.get("work_item_id"):
+        work_item_pages_path = (
+            f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/"
+            f"work-items/{params['work_item_id']}/pages/"
+        )
+        probes.append(
+            probe_get(
+                settings,
+                "work_item_page_links_collection",
+                work_item_pages_path,
+                query={"per_page": args.per_page or 5},
+            )
+        )
+
+    project_probe = probes[0]
+    project_body = project_probe.get("body") if project_probe.get("status") == 200 else None
+    page_view = project_body.get("page_view") if isinstance(project_body, dict) else None
+    project_pages_probe = probes[2]
+    app_project_pages_probe = probes[3]
+    workspace_pages_probe = probes[1]
+
+    if (
+        project_probe.get("status") == 200
+        and project_pages_probe.get("status") == 404
+        and app_project_pages_probe.get("status") in (200, 401, 403)
+    ):
+        conclusion = (
+            "Project access works and Plane exposes pages through its app route, but the documented "
+            "API-key /api/v1 project pages route is not available on this deployment."
+        )
+        recommendation = (
+            "Treat project pages as unsupported by the official API-key surface unless this deployment "
+            "adds a bridge or Plane exposes the route in a later version. Use session-auth app APIs only "
+            "for browser-like automation, or fall back to work items/repo docs."
+        )
+    elif project_probe.get("status") == 200 and project_pages_probe.get("status") == 404:
+        conclusion = (
+            "Project access works, but the documented project pages collection route is not matched "
+            "by this deployment's public /api/v1 router."
+        )
+        recommendation = (
+            "Do not retry project page creation through the same API-key route. Use a work item or repo "
+            "document as the fallback, then inspect the Plane server version, route table, or session-only app API."
+        )
+    elif project_pages_probe.get("status") == 200:
+        conclusion = "The documented project pages collection route is available on this deployment."
+        recommendation = "Project page create/get calls can use the catalog-backed pages endpoints."
+    elif project_pages_probe.get("status") in (401, 403):
+        conclusion = "The project pages route exists or is protected, but this token cannot access it."
+        recommendation = (
+            "Check whether the route requires a different token scope, OAuth bearer auth, "
+            "or browser session auth."
+        )
+    else:
+        conclusion = "Project pages availability is inconclusive from the public /api/v1 probe."
+        recommendation = "Compare the deployed Plane version and route table against the official API docs."
+
+    payload = {
+        "workflow": args.workflow_name,
+        "project_id": project_id,
+        "work_item_id": params.get("work_item_id"),
+        "summary": {
+            "project_accessible": project_probe.get("status") == 200,
+            "page_view": page_view,
+            "workspace_pages_status": workspace_pages_probe.get("status"),
+            "project_pages_status": project_pages_probe.get("status"),
+            "app_project_pages_status": app_project_pages_probe.get("status"),
+            "project_pages_unavailable_on_deployment": project_pages_probe.get(
+                "unavailable_on_deployment", False
+            ),
+            "conclusion": conclusion,
+            "recommendation": recommendation,
+        },
+        "probes": probes,
+    }
+    print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+
+
 def cmd_workflow(args, settings, entries):
     spec = WORKFLOW_SPECS[args.workflow_name]
     if spec["kind"] == "upload":
         return workflow_upload(args, settings, entries, spec)
     if spec["kind"] == "scan":
         return workflow_project_scan(args, settings, entries)
+    if spec["kind"] == "pages_probe":
+        return workflow_pages_probe(args, settings, entries)
     return workflow_invoke(args, settings, entries, spec)
 
 

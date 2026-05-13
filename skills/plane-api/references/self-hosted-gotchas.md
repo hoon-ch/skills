@@ -40,13 +40,30 @@ A self-hosted deployment may still expose page functionality differently. For ex
 - page routes may require session authentication
 - the public API and app API may not be aligned
 
-If pages fail while other `/api/v1` endpoints work, investigate deployment-specific routing before changing the catalog.
+Run a read-only routing probe before attempting page creation:
+
+```bash
+python scripts/plane_api.py workflow pages-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
+The important failure shape is:
+
+- `project_accessible: true`
+- project body shows `page_view: true`
+- `project_pages_status: 404`
+- `app_project_pages_status: 401`, `403`, or `200`
+
+That means the token, workspace, and project access are working, and Plane has an app-route pages implementation under `/api/...`, but the documented API-key project pages collection route is not matched by the deployment's public `/api/v1` router. Treat this as a deployment API-surface mismatch, not a page payload problem.
+
+In that shape, project pages are not available through the official API-key surface unless the deployment adds a bridge or the deployed Plane version later exposes the route under `/api/v1`. Session-auth app routes may still work for browser UI traffic, but they are not a drop-in replacement for API-key automation.
 
 Operational fallback:
 
 - do not keep retrying page creation on the same deployment
 - store operational rules or checklists as a meta work item instead
-- only revisit pages after confirming the deployment actually supports the route
+- only revisit API-key pages after `workflow pages-probe` reports `project_pages_status: 200` or after adding a deployment-specific bridge
 
 ## Project Features Caveat
 
@@ -74,6 +91,7 @@ If a helper fails with a validation error such as a missing request key:
 1. Confirm the base URL is correct
 2. Confirm the workspace slug is correct
 3. Retry the exact endpoint with `request --pretty`
-4. Compare the deployed Plane version against the official docs
-5. Check whether the failing route is app-only in that deployment
-6. Only after that, consider adding a deployment-specific extension outside this generic skill
+4. For pages, run `workflow pages-probe`
+5. Compare the deployed Plane version against the official docs
+6. Check whether the failing route is app-only in that deployment
+7. Only after that, consider adding a deployment-specific extension outside this generic skill

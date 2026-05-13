@@ -97,6 +97,7 @@ The catalog is intentionally low-level. The skill adds higher-level wrappers for
 - `upload-user-asset`
 - `upload-workspace-asset`
 - `project-scan`
+- `pages-probe`
 - `cycle-add-work-items`
 - `cycle-remove-work-item`
 - `cycle-transfer-work-items`
@@ -135,7 +136,17 @@ Pages are included in the catalog because the official docs expose `/api/v1` pag
 
 That does not guarantee every self-hosted deployment matches those paths or auth requirements. When pages fail in a specific deployment, treat that as a deployment mismatch first, not as a catalog bug.
 
-If `create-project-page` returns `404`, prefer a meta work item or repo document over repeated retries.
+Before creating pages on self-hosted Plane, run:
+
+```bash
+python scripts/plane_api.py workflow pages-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
+The probe is read-only. It checks project access, workspace pages, documented `/api/v1` project pages, the app-route `/api` project pages surface, and optionally work-item page links when `--work-item-id` is provided.
+
+If project access works, `/api/v1` project pages return `404`, and app-route project pages return `401`, `403`, or `200`, treat API-key pages as unsupported on that deployment unless a bridge has been added. Prefer a meta work item or repo document over repeated retries.
 
 ## Project Scan
 

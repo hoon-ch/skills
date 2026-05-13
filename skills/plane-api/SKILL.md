@@ -81,6 +81,14 @@ python scripts/plane_api.py workflow project-scan \
   --pretty
 ```
 
+Probe page API routing without creating anything:
+
+```bash
+python scripts/plane_api.py workflow pages-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
 ## Core Commands
 
 Generic request:
@@ -164,6 +172,7 @@ Prefer:
 
 - `doctor` and `doctor --test` before any mutating flow
 - `workflow project-scan` before choosing states, labels, modules, or write targets
+- `workflow pages-probe` before using page APIs on self-hosted deployments
 - `request` when you already know the exact path
 - `invoke` when the operation is already in the catalog
 - `workflow` when the task spans multiple requests or has a common alias such as upload, add/remove, transfer, or link/unlink
@@ -201,11 +210,19 @@ python scripts/plane_api.py workflow project-scan \
   --pretty
 ```
 
+Read-only pages routing probe:
+
+```bash
+python scripts/plane_api.py workflow pages-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
 ## Notes
 
 - The default resource naming follows official `work-items` paths. Legacy `issues` aliases are deprecated and should be treated as compatibility-only.
 - Some self-hosted deployments diverge from the official docs for selected resources such as pages or app-only endpoints. This skill documents those cases but does not hard-code per-deployment fallbacks.
-- If project page creation returns `404`, stop retrying and store the guidance as a meta work item or repo document instead.
+- If `workflow pages-probe` shows project access works, `/api/v1` project pages return `404`, and app-route project pages return `401`, `403`, or `200`, treat API-key pages as unsupported unless the deployment adds a bridge. Store the guidance as a meta work item or repo document instead of retrying the same request.
 - Rate-limit headers are surfaced in pretty output when the server returns them.
 
 ## References
