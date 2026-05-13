@@ -179,6 +179,32 @@ Prefer:
 
 Use `workflow` dry runs first for mutating flows when you want to inspect the exact request sequence before execution.
 
+## Page Content
+
+When creating or updating Plane pages from repository Markdown:
+
+- Convert the source Markdown with `pandoc --from gfm --to html --wrap=none`
+- Send the converted HTML as `description_html`
+- Do not wrap the whole document in `<pre><code>...</code></pre>`
+- Preserve document structure so headings, lists, and tables render as normal Plane content
+- Let only original fenced code blocks remain as code blocks after conversion
+
+Example:
+
+```bash
+pandoc --from gfm --to html --wrap=none ./docs/runbook.md > /tmp/runbook.html
+jq -n \
+  --arg name "Runbook" \
+  --rawfile description_html /tmp/runbook.html \
+  '{name: $name, description_html: $description_html}' \
+  > /tmp/plane-page.json
+python scripts/plane_api.py request \
+  --method POST \
+  --path /api/v1/workspaces/<workspace>/projects/<project-id>/pages/ \
+  --data @/tmp/plane-page.json \
+  --pretty
+```
+
 ## Failure Fallback
 
 If a helper fails with a server-side validation mismatch, fall back to `request` with the exact endpoint and payload the deployment expects.
