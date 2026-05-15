@@ -89,6 +89,14 @@ python scripts/plane_api.py workflow pages-probe \
   --pretty
 ```
 
+Probe view API routing without creating or changing views:
+
+```bash
+python scripts/plane_api.py workflow views-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
 ## Core Commands
 
 Generic request:
@@ -151,6 +159,7 @@ The catalog covers official Plane API groups across:
 
 - Projects and project features
 - Work items, states, labels, work item types
+- Project view availability probes and raw view-route control
 - Custom properties, values, and options
 - Comments, activities, links, attachments, and work item page links
 - Cycles, modules, milestones, estimates, estimate points, worklogs
@@ -173,6 +182,7 @@ Prefer:
 - `doctor` and `doctor --test` before any mutating flow
 - `workflow project-scan` before choosing states, labels, modules, or write targets
 - `workflow pages-probe` before using page APIs on self-hosted deployments
+- `workflow views-probe` before using view APIs on any deployment
 - `request` when you already know the exact path
 - `invoke` when the operation is already in the catalog
 - `workflow` when the task spans multiple requests or has a common alias such as upload, add/remove, transfer, or link/unlink
@@ -204,6 +214,38 @@ python scripts/plane_api.py request \
   --data @/tmp/plane-page.json \
   --pretty
 ```
+
+## Project Views
+
+Plane's official public `/api/v1` surface does not reliably expose project view
+management. Before controlling views, run:
+
+```bash
+python scripts/plane_api.py workflow views-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
+If the probe reports a public `/api/v1` views route as available, use `request`
+with the matching route and exact payload. That route may be native support or a
+deployment-specific bridge. Use `--set key=value` for scalar JSON fields and
+`--data @payload.json` for structured filters, display properties, or layout
+settings.
+
+If `/api/v1` view routes are not available, state plainly that API-key view
+control is impossible on that deployment unless a bridge is added. App routes are
+session-authenticated internals, not a substitute for API-key automation. Store
+the desired view contract in a work item or repo document instead of retrying the
+same API-key request.
+
+Deployment-specific bridge option:
+
+- re-export the app view endpoint, such as Plane's `IssueViewViewSet`, through a
+  mounted `/api/v1` URL module
+- set `authentication_classes = [APIKeyAuthentication]`
+- expose only the exact collection/detail actions needed for list/create/get/patch/delete
+- verify with `workflow views-probe`, then create, re-read, update, and delete a
+  disposable smoke view
 
 ## Failure Fallback
 
@@ -244,11 +286,20 @@ python scripts/plane_api.py workflow pages-probe \
   --pretty
 ```
 
+Read-only views routing probe:
+
+```bash
+python scripts/plane_api.py workflow views-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
 ## Notes
 
 - The default resource naming follows official `work-items` paths. Legacy `issues` aliases are deprecated and should be treated as compatibility-only.
 - Some self-hosted deployments diverge from the official docs for selected resources such as pages or app-only endpoints. This skill documents those cases but does not hard-code per-deployment fallbacks.
 - If `workflow pages-probe` shows project access works, `/api/v1` project pages return `404`, and app-route project pages return `401`, `403`, or `200`, treat API-key pages as unsupported unless the deployment adds a bridge. Store the guidance as a meta work item or repo document instead of retrying the same request.
+- If `workflow views-probe` shows project access works, `/api/v1` view routes return `404`, and app-route view routes return `401`, `403`, or `200`, say API-key view control is impossible unless the deployment adds a bridge. Store the intended view definition as a meta work item or repo document instead of retrying the same request.
 - Rate-limit headers are surfaced in pretty output when the server returns them.
 
 ## References

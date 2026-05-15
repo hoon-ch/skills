@@ -84,7 +84,52 @@ Rules:
 - Expect only original fenced code blocks to remain code blocks
 - If `pandoc` is unavailable, install it or use another CommonMark/GFM parser before writing the page; do not fall back to a whole-document code block
 
-## 5. Fallback Rules
+## 5. Project View Control
+
+Project views are not guaranteed to be available through Plane's public
+`/api/v1` API-key surface on every deployment. Without a native route or a
+deployment-specific bridge, API-key view control is impossible. Probe before
+writing:
+
+```bash
+python scripts/plane_api.py workflow views-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
+Use the result as the routing decision:
+
+- public `/api/v1` view route returns `200`: use `request` against that exact route
+- public `/api/v1` route returns `404` but app route returns `200`, `401`, or `403`: state that API-key view control is impossible without a bridge
+- project access fails: fix project/token access before reasoning about views
+
+For structured view payloads, prefer a JSON file:
+
+```bash
+jq -n \
+  --arg name "Triage" \
+  --arg display_filters "all" \
+  '{name: $name, display_filters: $display_filters}' \
+  > /tmp/plane-view.json
+python scripts/plane_api.py request \
+  --method POST \
+  --path /api/v1/workspaces/<workspace>/projects/<project-id>/views/ \
+  --data @/tmp/plane-view.json \
+  --pretty
+```
+
+After changing a view, re-read the view and the affected work-item query. Confirm
+that filters, grouping, ordering, and visible properties match the intended
+operator workflow.
+
+If a bridge is needed, own it as deployment-specific infrastructure:
+
+- re-export Plane's app view endpoint through `/api/v1` with `APIKeyAuthentication`
+- expose only the collection/detail actions the automation actually needs
+- document the Plane image version and app ViewSet class name used by the bridge
+- smoke test create, read, patch, and delete/archive behavior with a disposable view
+
+## 6. Fallback Rules
 
 ### Page creation fails
 
@@ -92,6 +137,16 @@ If project page creation returns `404`:
 
 - stop retrying the same helper
 - store the content as a meta work item or repo document instead
+
+### View control fails
+
+If project view creation or update returns `404` on a public `/api/v1` route:
+
+- stop retrying the same route
+- run `workflow views-probe`
+- if app routes are visible but no `/api/v1` bridge exists, say API-key view control is impossible
+- either add a deployment-specific bridge or document the desired view contract instead of using the API key
+- only use app-route session automation when the user explicitly asked for browser-like control
 
 ### Helper validation mismatch
 
@@ -111,7 +166,7 @@ python scripts/plane_api.py request \
   --pretty
 ```
 
-## 6. Post-Write Verification
+## 7. Post-Write Verification
 
 After creation or linking:
 

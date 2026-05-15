@@ -47,6 +47,7 @@ PATH_PARAM_NAMES = [
     "comment_id",
     "attachment_id",
     "page_id",
+    "view_id",
     "cycle_id",
     "module_id",
     "milestone_id",
@@ -233,6 +234,9 @@ WORKFLOW_SPECS = {
     },
     "pages-probe": {
         "kind": "pages_probe",
+    },
+    "views-probe": {
+        "kind": "views_probe",
     },
 }
 
@@ -1151,6 +1155,106 @@ def workflow_pages_probe(args, settings, entries):
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
 
 
+def workflow_views_probe(args, settings, entries):
+    params = collect_known_params(args, settings)
+    project_id = params.get("project_id")
+    if not project_id:
+        raise SystemExit("--project-id is required")
+
+    workspace_slug = params["workspace_slug"]
+    project_path = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/"
+    v1_project_views_path = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/views/"
+    v1_project_issue_views_path = f"/api/v1/workspaces/{workspace_slug}/projects/{project_id}/issue-views/"
+    app_project_views_path = f"/api/workspaces/{workspace_slug}/projects/{project_id}/views/"
+    app_project_issue_views_path = f"/api/workspaces/{workspace_slug}/projects/{project_id}/issue-views/"
+
+    probes = [
+        probe_get(settings, "project", project_path),
+        probe_get(
+            settings,
+            "v1_project_views_collection",
+            v1_project_views_path,
+            query={"per_page": args.per_page or 5},
+        ),
+        probe_get(
+            settings,
+            "v1_project_issue_views_collection",
+            v1_project_issue_views_path,
+            query={"per_page": args.per_page or 5},
+        ),
+        probe_get(
+            settings,
+            "app_project_views_collection",
+            app_project_views_path,
+            query={"per_page": args.per_page or 5},
+        ),
+        probe_get(
+            settings,
+            "app_project_issue_views_collection",
+            app_project_issue_views_path,
+            query={"per_page": args.per_page or 5},
+        ),
+    ]
+
+    project_probe = probes[0]
+    project_body = project_probe.get("body") if project_probe.get("status") == 200 else None
+    issue_views_view = project_body.get("issue_views_view") if isinstance(project_body, dict) else None
+    v1_statuses = [probes[1].get("status"), probes[2].get("status")]
+    app_statuses = [probes[3].get("status"), probes[4].get("status")]
+
+    if any(status == 200 for status in v1_statuses):
+        conclusion = "A public /api/v1 project views route is available on this deployment."
+        recommendation = (
+            "Use the matching route through `request` for list/get/create/update/delete. This may be native "
+            "support or a deployment-specific bridge. Re-read the affected view and work-item list to verify "
+            "filters and display settings."
+        )
+    elif project_probe.get("status") == 200 and any(status in (200, 401, 403) for status in app_statuses):
+        conclusion = (
+            "Project access works, but API-key view control is not available through the public /api/v1 surface. "
+            "View management appears to exist only behind Plane's app route."
+        )
+        recommendation = (
+            "Do not attempt view writes with the API key unless this deployment adds an explicit /api/v1 bridge "
+            "for the app view endpoints. Without that bridge, treat API-key view control as impossible and store "
+            "the desired view contract in a work item or repo document."
+        )
+    elif project_probe.get("status") == 200 and all(status == 404 for status in v1_statuses):
+        conclusion = (
+            "Project access works, but API-key view control is not available because the tested public /api/v1 "
+            "view routes are not matched by this deployment."
+        )
+        recommendation = (
+            "Do not retry the same /api/v1 view paths as a write flow. Add a deployment-specific bridge if "
+            "API-key control is required; otherwise document the intended view."
+        )
+    elif project_probe.get("status") in (401, 403):
+        conclusion = "The token cannot access the project, so view availability cannot be determined."
+        recommendation = "Fix project access or token scope first, then rerun the views probe."
+    else:
+        conclusion = "Project view availability is inconclusive from the probe."
+        recommendation = "Compare the deployed Plane version and route table against the official API surface."
+
+    payload = {
+        "workflow": args.workflow_name,
+        "project_id": project_id,
+        "summary": {
+            "project_accessible": project_probe.get("status") == 200,
+            "issue_views_view": issue_views_view,
+            "v1_project_views_status": probes[1].get("status"),
+            "v1_project_issue_views_status": probes[2].get("status"),
+            "app_project_views_status": probes[3].get("status"),
+            "app_project_issue_views_status": probes[4].get("status"),
+            "v1_views_available": any(status == 200 for status in v1_statuses),
+            "app_views_route_visible": any(status in (200, 401, 403) for status in app_statuses),
+            "conclusion": conclusion,
+            "recommendation": recommendation,
+        },
+        "probes": probes,
+    }
+    print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+
+
 def cmd_workflow(args, settings, entries):
     spec = WORKFLOW_SPECS[args.workflow_name]
     if spec["kind"] == "upload":
@@ -1159,6 +1263,8 @@ def cmd_workflow(args, settings, entries):
         return workflow_project_scan(args, settings, entries)
     if spec["kind"] == "pages_probe":
         return workflow_pages_probe(args, settings, entries)
+    if spec["kind"] == "views_probe":
+        return workflow_views_probe(args, settings, entries)
     return workflow_invoke(args, settings, entries, spec)
 
 
