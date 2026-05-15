@@ -1,0 +1,4 @@
+interface:
+  display_name: "Diverging UI"
+  short_description: "Verbalized-sampling workflow for distinctive frontend design directions"
+  default_prompt: "Use $diverging-ui to name the generic baseline for the requested UI, sample 5-7 frontend design directions with probabilities, choose a strong non-generic direction, and turn it into implementation-ready UI decisions."

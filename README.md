@@ -46,6 +46,7 @@ This repo is optimized for the install experience exposed by `skills.sh`.
 ### Current skills
 
 - `plane-api`: direct Plane REST API access with setup, doctor, request, catalog, invoke, and workflow helpers
+- `diverging-ui`: verbalized-sampling workflow for distinctive frontend UI directions
 
 ## Repository Layout
 
@@ -112,4 +113,3 @@ Recommended first categories are listed above. Add a category bundle only after 
 - This repo currently starts with `skills/plane-api` as the first published skill
 - `template/` is the canonical scaffold shape for future skills
 - `spec/quality-bar.md` defines the minimum publishable quality bar
-- `owner.email` in `.claude-plugin/marketplace.json` still needs a real public contact value before wider publishing
