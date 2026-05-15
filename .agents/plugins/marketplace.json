@@ -1,0 +1,17 @@
+{
+  "plugins": [
+    {
+      "name": "hoon-ch-skills",
+      "description": "Personal installable skills maintained by hoon-ch",
+      "category": "productivity",
+      "source": {
+        "source": "local",
+        "path": "./plugins/hoon-ch-skills"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_USE"
+      }
+    }
+  ]
+}

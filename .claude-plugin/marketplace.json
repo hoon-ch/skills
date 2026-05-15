@@ -16,7 +16,10 @@
       "strict": false,
       "skills": [
         "./skills/plane-api",
-        "./skills/diverging-ui"
+        "./skills/diverging-ui",
+        "./skills/repo-web-fsd",
+        "./skills/harbor",
+        "./skills/transcript-lecture-notes"
       ]
     }
   ]

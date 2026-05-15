@@ -20,10 +20,12 @@ The repo stays broad. Each skill stays narrow.
 ## Top-Level Folders
 
 - `skills/`: real skills that can be installed individually
-- `template/`: the canonical starter template for new skills
+- `template/`: the canonical starter template for new skills; files here must not be installable skills
 - `spec/`: repository-level rules and quality expectations
 - `scripts/`: repo maintenance helpers
 - `.claude-plugin/`: bundle manifest for marketplace-style installation
+- `.agents/plugins/`: Codex plugin marketplace metadata
+- `plugins/`: Codex plugin package metadata; skill content must point back to `skills/`
 
 ## Skill Folder Shape
 
@@ -40,7 +42,8 @@ skills/<skill-name>/
 └── assets/
 ```
 
-Only `SKILL.md` is required. The other folders are optional but recommended for reusable skills.
+Only `SKILL.md` is required in published skill folders. The template scaffold
+uses `SKILL.md.template` so `skills.sh` does not expose it as a real skill.
 
 ## Skill Rules
 
@@ -60,6 +63,18 @@ Rules:
 - Prefer category bundles such as `api-skills`, `design-skills`, or `workspace-skills`
 - Add a category bundle only when it contains at least two real skills
 - Treat bundle names as stable public contracts once published
+
+## Codex Plugin Policy
+
+Expose this repo to Codex through `.agents/plugins/marketplace.json` and
+`plugins/hoon-ch-skills/.codex-plugin/plugin.json`.
+
+Rules:
+
+- Keep `skills/` as the only source of published skill content
+- Keep `plugins/hoon-ch-skills/skills` as a symlink to `../../skills`
+- Do not copy skill folders into `plugins/hoon-ch-skills/`
+- Validate Codex plugin metadata with `scripts/validate_repo.py`
 
 ## Persistent Setup Pattern
 

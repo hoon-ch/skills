@@ -1,115 +1,82 @@
 # hoon-ch/skills
 
-`hoon-ch/skills` is a personal, `skills.sh`-first skill registry.
+Personal skill registry for Codex and Claude Code.
 
-The repo is managed as:
+This repository contains small, installable skills for workflows that are worth
+reusing across projects. Each published skill lives under `skills/<name>` and is
+designed to work with [`skills.sh`](https://skills.sh/).
 
-- `repo = marketplace`
-- `skill = product`
-- `bundle = install surface`
+## Install With `skills.sh`
 
-The goal is not one giant universal skill. The goal is a growing collection of small, installable, tool-specific skills that work well through `skills.sh`.
+Install all published skills globally:
 
-## Principles
+```bash
+npx skills add hoon-ch/skills -g \
+  --agent codex claude-code \
+  --skill '*' \
+  --yes
+```
 
-- Keep the repo as a single monorepo in the style of `anthropics/skills`
-- Keep each published skill self-contained under `skills/<skill-name>/`
-- Prefer narrow, reliable skills over broad, vague umbrella skills
-- Use bundle names as stable public contracts
-- Grow breadth through a few deep, trusted skills per category
+Install only selected skills:
 
-## Install Model
+```bash
+npx skills add hoon-ch/skills -g \
+  --agent codex claude-code \
+  --skill plane-api \
+  --skill diverging-ui \
+  --skill repo-web-fsd \
+  --skill harbor \
+  --skill transcript-lecture-notes \
+  --yes
+```
 
-Preferred entry points:
+List available skills without installing:
 
-- Repo install: `npx skills add hoon-ch/skills`
-- Bundle install: use a stable bundle from `.claude-plugin/marketplace.json`
-- Skill install: install a single skill by path when needed
+```bash
+npx skills add hoon-ch/skills -g --list
+```
 
-This repo is optimized for the install experience exposed by `skills.sh`.
+## Install As A Plugin
 
-## Current Published Surface
+This repository also includes plugin metadata for agent plugin workflows:
 
-### Current bundle
+- Claude plugin manifest: `.claude-plugin/marketplace.json`
+- Codex plugin marketplace: `.agents/plugins/marketplace.json`
+- Codex plugin package: `plugins/hoon-ch-skills/`
 
-- `all-skills`: every currently published skill; use this until the first category bundle has at least two real skills
+All three install surfaces expose the same published skills from `skills/`.
 
-### Planned bundles
+## Published Skills
 
-- `api-skills`
-- `github-skills`
-- `workspace-skills`
-- `design-skills`
-- `cloud-skills`
-- `devops-skills`
+| Skill | Use when |
+| --- | --- |
+| `plane-api` | You need direct Plane REST API access, route probing, project scans, or workflow helpers for Plane Cloud or self-hosted Plane. |
+| `diverging-ui` | You are creating or redesigning frontend UI and need to avoid the most generic first-pass design direction. |
+| `repo-web-fsd` | You need repository-specific guidance for `apps/web` placement, FSD boundaries, or design-system ownership decisions. |
+| `harbor` | You need Harbor registry operations guidance for Kubernetes/GitOps, scanners, robot accounts, replication, or ArgoCD drift. |
+| `transcript-lecture-notes` | You need to turn video or audio transcripts into blog-style Markdown notes while keeping SRT/VTT/TXT/Markdown transcripts as linked source files. |
 
-### Current skills
+## What's In This Repository
 
-- `plane-api`: direct Plane REST API access with setup, doctor, request, catalog, invoke, and workflow helpers
-- `diverging-ui`: verbalized-sampling workflow for distinctive frontend UI directions
-
-## Repository Layout
+The repository is a source for installable agent skills, not a prompt dump.
+Install from it when you want the current Plane, UI divergence, `apps/web` FSD,
+Harbor operations, or transcript-derived lecture-note guidance available in
+Codex or Claude Code.
 
 ```text
 .
 ├── .claude-plugin/
 │   └── marketplace.json
+├── .agents/
+│   └── plugins/
+│       └── marketplace.json
+├── plugins/
+│   └── hoon-ch-skills/
 ├── skills/
 │   └── <skill-name>/
-├── spec/
-│   ├── repository-layout.md
-│   └── quality-bar.md
-├── template/
-│   ├── SKILL.md
-│   ├── agents/
-│   │   └── openai.yaml
-│   ├── references/
-│   │   └── configuration.md
-│   └── scripts/
-│       └── setup.py
-└── scripts/
-    ├── create_skill.py
-    └── validate_repo.py
+└── template/
+    └── SKILL.md.template
 ```
 
-## Authoring Rules
-
-- Put every real skill in `skills/<skill-name>/`
-- Keep skill names tool-specific or workflow-specific
-- Do not create a generic “all tools” skill
-- Add a new bundle only when at least two related skills exist
-- Treat `.claude-plugin/marketplace.json` as a stable public contract
-
-Every reusable tool skill should include:
-
-- clear triggers in `SKILL.md`
-- a quick start section
-- a workflow section
-- a failure fallback or raw escape hatch
-- concrete examples
-- `scripts/setup.py` when persistent defaults help
-- a `doctor`, `validate`, or equivalent command when configuration can fail
-
-## Add A New Skill
-
-Scaffold a new skill:
-
-```bash
-python3 scripts/create_skill.py my-skill --with agents,references,scripts
-```
-
-Validate the repo:
-
-```bash
-python3 scripts/validate_repo.py
-```
-
-## Growth Strategy
-
-Recommended first categories are listed above. Add a category bundle only after there are at least two real skills in that area.
-
-## Notes
-
-- This repo currently starts with `skills/plane-api` as the first published skill
-- `template/` is the canonical scaffold shape for future skills
-- `spec/quality-bar.md` defines the minimum publishable quality bar
+Repository maintenance notes for agents live in `AGENTS.md`. Claude-specific
+entrypoint notes live in `CLAUDE.md`.

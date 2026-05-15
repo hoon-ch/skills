@@ -300,6 +300,7 @@ python scripts/plane_api.py workflow views-probe \
 - Some self-hosted deployments diverge from the official docs for selected resources such as pages or app-only endpoints. This skill documents those cases but does not hard-code per-deployment fallbacks.
 - If `workflow pages-probe` shows project access works, `/api/v1` project pages return `404`, and app-route project pages return `401`, `403`, or `200`, treat API-key pages as unsupported unless the deployment adds a bridge. Store the guidance as a meta work item or repo document instead of retrying the same request.
 - If `workflow views-probe` shows project access works, `/api/v1` view routes return `404`, and app-route view routes return `401`, `403`, or `200`, say API-key view control is impossible unless the deployment adds a bridge. Store the intended view definition as a meta work item or repo document instead of retrying the same request.
+- When creating or updating project views, always write and verify `rich_filters` in addition to legacy `filters`; modern Plane UI can ignore populated `filters` when `rich_filters` is empty. See [project-views.md](./references/project-views.md).
 - Rate-limit headers are surfaced in pretty output when the server returns them.
 
 ## References
@@ -308,6 +309,7 @@ python scripts/plane_api.py workflow views-probe \
 - [auth-and-pagination.md](./references/auth-and-pagination.md)
 - [operational-workflows.md](./references/operational-workflows.md)
 - [self-hosted-gotchas.md](./references/self-hosted-gotchas.md)
+- [project-views.md](./references/project-views.md)
 - `scripts/endpoint_catalog.json`
 - `scripts/plane_api.py`
 - `scripts/setup.py`

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Harbor"
+  short_description: "Operate Harbor registries, scanners, robot accounts, replication, and GitOps drift"
+  default_prompt: "Use $harbor to inspect or change Harbor registry operations, preferring live evidence and GitOps-safe verification before mutation."

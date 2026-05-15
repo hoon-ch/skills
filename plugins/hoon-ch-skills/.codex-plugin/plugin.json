@@ -1,0 +1,9 @@
+{
+  "name": "hoon-ch-skills",
+  "version": "0.1.0",
+  "description": "Personal installable skills maintained by hoon-ch",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Hoon Ch Skills"
+  }
+}
