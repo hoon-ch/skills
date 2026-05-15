@@ -24,6 +24,9 @@ The CLI uses those entries through:
 - `invoke` to execute one documented action
 - `workflow` to wrap common multi-step or association flows
 
+View route probing is intentionally implemented as a workflow rather than a
+catalog group because public API-key support is not consistently available yet.
+
 ## Covered Resource Groups
 
 The catalog currently includes entries for these Plane API groups:
@@ -98,6 +101,7 @@ The catalog is intentionally low-level. The skill adds higher-level wrappers for
 - `upload-workspace-asset`
 - `project-scan`
 - `pages-probe`
+- `views-probe`
 - `cycle-add-work-items`
 - `cycle-remove-work-item`
 - `cycle-transfer-work-items`
@@ -147,6 +151,44 @@ python scripts/plane_api.py workflow pages-probe \
 The probe is read-only. It checks project access, workspace pages, documented `/api/v1` project pages, the app-route `/api` project pages surface, and optionally work-item page links when `--work-item-id` is provided.
 
 If project access works, `/api/v1` project pages return `404`, and app-route project pages return `401`, `403`, or `200`, treat API-key pages as unsupported on that deployment unless a bridge has been added. Prefer a meta work item or repo document over repeated retries.
+
+## Project Views
+
+Plane views are a deployment-sensitive area. Some deployments expose view state
+only through the web app route family, while the official public `/api/v1` API
+does not reliably include stable view management endpoints.
+
+Before controlling views, run:
+
+```bash
+python scripts/plane_api.py workflow views-probe \
+  --project-id <project-uuid> \
+  --pretty
+```
+
+The probe is read-only. It checks project access, likely `/api/v1` project view
+collections, and likely app-route project view collections:
+
+- `/api/v1/workspaces/<workspace>/projects/<project-id>/views/`
+- `/api/v1/workspaces/<workspace>/projects/<project-id>/issue-views/`
+- `/api/workspaces/<workspace>/projects/<project-id>/views/`
+- `/api/workspaces/<workspace>/projects/<project-id>/issue-views/`
+
+If a public `/api/v1` route returns `200`, use `request` with that exact route
+and payload for list/get/create/update/delete flows. That route may be native
+support or a deployment-specific bridge.
+
+If only app routes are visible, API-key view control is impossible on that
+deployment until a bridge is added. Do not soften this as a payload problem or a
+retryable API-key call. Use session-auth browser-like automation only when
+explicitly intended, or store the desired view definition as a work item or repo
+document.
+
+A bridge can be acceptable for self-hosted deployments when it is owned as local
+infrastructure. The usual shape is to re-export Plane's app view endpoint, such
+as `IssueViewViewSet`, from the `/api/v1` URL module with `APIKeyAuthentication`.
+Keep the bridge narrow, version-pin the Plane image behavior it depends on, and
+run a disposable smoke sequence before trusting it for real view definitions.
 
 ## Project Scan
 
