@@ -10,7 +10,7 @@ from pathlib import Path
 
 FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n", re.S)
 SECTION_RE = re.compile(r"^##\s+(.+?)\s*$", re.M)
-LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+LINK_RE = re.compile(r"\[[^\]]+\]\((.+)\)")
 VALID_KINDS = {"transcript_lecture_article"}
 VALID_SOURCE_TYPES = {"srt", "vtt", "markdown", "text"}
 
