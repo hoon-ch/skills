@@ -97,6 +97,27 @@ python scripts/plane_api.py workflow views-probe \
   --pretty
 ```
 
+List work item relations:
+
+```bash
+python scripts/plane_api.py invoke work-item-relations list \
+  --project-id <project-uuid> \
+  --work-item-id <work-item-uuid> \
+  --pretty
+```
+
+Create or remove a work item relation:
+
+```bash
+python scripts/plane_api.py workflow work-item-relations-create \
+  --project-id <project-uuid> \
+  --work-item-id <source-work-item-uuid> \
+  --relation-type blocked_by \
+  --related-list <target-work-item-uuid> \
+  --execute \
+  --pretty
+```
+
 ## Core Commands
 
 Generic request:
@@ -158,7 +179,7 @@ python scripts/plane_api.py workflow project-scan \
 The catalog covers official Plane API groups across:
 
 - Projects and project features
-- Work items, states, labels, work item types
+- Work items, states, labels, work item types, and work item relations
 - Project view availability probes and raw view-route control
 - Custom properties, values, and options
 - Comments, activities, links, attachments, and work item page links
@@ -301,6 +322,7 @@ python scripts/plane_api.py workflow views-probe \
 - If `workflow pages-probe` shows project access works, `/api/v1` project pages return `404`, and app-route project pages return `401`, `403`, or `200`, treat API-key pages as unsupported unless the deployment adds a bridge. Store the guidance as a meta work item or repo document instead of retrying the same request.
 - If `workflow views-probe` shows project access works, `/api/v1` view routes return `404`, and app-route view routes return `401`, `403`, or `200`, say API-key view control is impossible unless the deployment adds a bridge. Store the intended view definition as a meta work item or repo document instead of retrying the same request.
 - When creating or updating project views, always write and verify `rich_filters` in addition to legacy `filters`; modern Plane UI can ignore populated `filters` when `rich_filters` is empty. See [project-views.md](./references/project-views.md).
+- Work item relations use `relation_type` plus a `related_list` array. Known relation types include `blocked_by`, `blocking`, `relates_to`, and `duplicate`; newer Plane deployments may add scheduling or custom relation types.
 - Rate-limit headers are surfaced in pretty output when the server returns them.
 
 ## References
