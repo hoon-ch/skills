@@ -35,6 +35,7 @@ The catalog currently includes entries for these Plane API groups:
 - `Project Features`
 - `Label`
 - `Work Item`
+- `Work Item Relation`
 - `State`
 - `Work Item Type`
 - `Custom Property`
@@ -90,6 +91,8 @@ Relationship endpoints are represented as normal catalog actions. Examples:
 - `teamspace-members add`
 - `teamspace-members remove`
 - `cycles transfer-work-items`
+- `work-item-relations create`
+- `work-item-relations remove`
 - `work-item-pages create`
 
 ## Workflows
@@ -123,6 +126,9 @@ The catalog is intentionally low-level. The skill adds higher-level wrappers for
 - `work-item-page-link-list`
 - `work-item-page-link-get`
 - `work-item-page-link-delete`
+- `work-item-relations-list`
+- `work-item-relations-create`
+- `work-item-relations-remove`
 
 ## Deprecated Aliases
 
@@ -210,3 +216,48 @@ If one section is unavailable on the current deployment, the workflow still retu
 `workflow module-add-work-items` keeps the external CLI flag `--work-item-ids`, but the actual request body sent to the server uses the `issues` key.
 
 If that helper still fails on a specific deployment, fall back to raw `request` against the same `/module-issues/` endpoint with the exact body expected by the server.
+
+## Work Item Relations
+
+The public API docs can lag relation support, but Plane's official MCP server
+exposes work item relation tools. This skill maps those operations to:
+
+`/api/v1/workspaces/{workspace_slug}/projects/{project_id}/work-items/{work_item_id}/relations/`
+
+Use catalog-backed reads first:
+
+```bash
+python scripts/plane_api.py invoke work-item-relations list \
+  --project-id <project-uuid> \
+  --work-item-id <work-item-uuid> \
+  --pretty
+```
+
+Create relations with `relation_type` and `related_list`:
+
+```bash
+python scripts/plane_api.py workflow work-item-relations-create \
+  --project-id <project-uuid> \
+  --work-item-id <source-work-item-uuid> \
+  --relation-type blocked_by \
+  --related-list <target-work-item-uuid> \
+  --execute \
+  --pretty
+```
+
+Remove them with the same fields:
+
+```bash
+python scripts/plane_api.py workflow work-item-relations-remove \
+  --project-id <project-uuid> \
+  --work-item-id <source-work-item-uuid> \
+  --relation-type blocked_by \
+  --related-list <target-work-item-uuid> \
+  --execute \
+  --pretty
+```
+
+If a deployment returns `404`, treat relation control as unavailable on that
+Plane version or route table. Do not infer dependency data from prose fields;
+state that only hierarchy, labels, modules, or other exposed relations were
+verified.

@@ -70,6 +70,7 @@ COMMON_BODY_FIELDS = {
     "description_stripped": "description_stripped",
     "priority": "priority",
     "state": "state",
+    "relation_type": "relation_type",
     "access": "access",
     "color": "color",
     "start_date": "start_date",
@@ -85,6 +86,7 @@ ARRAY_BODY_FIELDS = {
     "member_ids": "member_ids",
     "work_item_ids": "work_item_ids",
     "issue_ids": "issue_ids",
+    "related_list": "related_list",
     "assignee_ids": "assignee_ids",
 }
 WORKFLOW_SPECS = {
@@ -228,6 +230,25 @@ WORKFLOW_SPECS = {
         "kind": "invoke",
         "resource": "work-item-pages",
         "action": "delete",
+    },
+    "work-item-relations-list": {
+        "kind": "invoke",
+        "resource": "work-item-relations",
+        "action": "list",
+    },
+    "work-item-relations-create": {
+        "kind": "invoke",
+        "resource": "work-item-relations",
+        "action": "create",
+        "array_body": ("related_list", "related_list"),
+        "field_map": {"relation_type": "relation_type"},
+    },
+    "work-item-relations-remove": {
+        "kind": "invoke",
+        "resource": "work-item-relations",
+        "action": "remove",
+        "array_body": ("related_list", "related_list"),
+        "field_map": {"relation_type": "relation_type"},
     },
     "project-scan": {
         "kind": "scan",

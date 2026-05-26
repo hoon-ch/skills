@@ -166,6 +166,15 @@ python scripts/plane_api.py request \
   --pretty
 ```
 
+### Relation route unavailable
+
+If `work-item-relations list` returns `404`:
+
+- do not treat prose such as "must come before" as stored dependency data
+- check the work item's `parent`, modules, labels, and other exposed fields
+- state plainly that relation control is not exposed by that deployment
+- use `request` only when you have confirmed a deployment-specific route shape
+
 ## 7. Post-Write Verification
 
 After creation or linking:
@@ -173,5 +182,6 @@ After creation or linking:
 - re-read work item counts
 - re-read module membership when module linking was involved
 - confirm labels and state on the created work item
+- for work item relations, re-read `work-item-relations list` and verify the expected relation type contains the target work item
 - for Plane pages, re-read the created page and confirm `description_html` contains normal HTML structure rather than one whole-document code block
 - clean up accidental test artifacts immediately
