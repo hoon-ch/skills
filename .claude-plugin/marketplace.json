@@ -19,7 +19,8 @@
         "./skills/diverging-ui",
         "./skills/repo-web-fsd",
         "./skills/harbor",
-        "./skills/transcript-lecture-notes"
+        "./skills/transcript-lecture-notes",
+        "./skills/claude-code-assist"
       ]
     }
   ]
