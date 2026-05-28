@@ -17,17 +17,19 @@ Do not invent review findings or summarize the target as if Claude inspected it.
 
 ## Unauthenticated CLI
 
-Check authentication state first:
+Check authentication state when the installed CLI supports it:
 
 ```bash
 claude auth status
 ```
 
-If the response indicates missing login, invalid token, expired subscription, or
-another account blocker, report the auth blocker and ask the user to complete
-the local Claude login, token, or subscription fix. Use the canonical no-tools
-smoke prompt only if auth status is ambiguous or after auth appears valid but
-print-mode still fails:
+If `claude auth status` is unavailable, use the canonical no-tools smoke prompt
+as the primary auth/availability signal instead of treating the missing
+subcommand as an auth blocker. If the response indicates missing login, invalid
+token, expired subscription, or another account blocker, report the auth blocker
+and ask the user to complete the local Claude login, token, or subscription fix.
+Use the canonical no-tools smoke prompt when auth status is ambiguous or after
+auth appears valid but print-mode still fails:
 
 ```bash
 claude -p --permission-mode plan --tools "" \
@@ -97,7 +99,7 @@ ask Claude to use `Grep` to narrow the review before reading.
 After every evidence-captured run, check both stdout and stderr logs:
 
 ```bash
-wc -c "$LOG" "$LOG.stderr"
+wc -c "$LOG" "$LOG.stderr" 2>/dev/null || true
 ```
 
 If both files are zero bytes, the model did not complete a review. Run a
