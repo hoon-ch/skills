@@ -56,7 +56,7 @@ All three install surfaces expose the same published skills from `skills/`.
 | `repo-web-fsd` | You need repository-specific guidance for `apps/web` placement, FSD boundaries, or design-system ownership decisions. |
 | `harbor` | You need Harbor registry operations guidance for Kubernetes/GitOps, scanners, robot accounts, replication, or ArgoCD drift. |
 | `transcript-lecture-notes` | You need to turn video or audio transcripts into blog-style Markdown notes while keeping SRT/VTT/TXT/Markdown transcripts as linked source files. |
-| `claude-code-assist` | You need Codex to use Claude Code CLI for focused reviews, second opinions, bounded delegation, or review evidence capture. |
+| `claude-code-assist` | You need Codex to use Claude Code CLI for focused reviews, source-backed research, second opinions, bounded delegation, or review evidence capture. |
 
 ## Documentation And Review Evidence
 
@@ -65,7 +65,7 @@ use them without reading repository history. This is especially important for
 orchestration skills such as `claude-code-assist`, where the skill coordinates
 another model or CLI.
 
-For review and delegation workflows:
+For review, research, and delegation workflows:
 
 - document the exact command shape, model default, permission mode, and fallback
 - keep prompt templates in `references/` rather than burying them in prose
@@ -77,8 +77,8 @@ For review and delegation workflows:
 
 The repository is a source for installable agent skills, not a prompt dump.
 Install from it when you want the current Plane, UI divergence, `apps/web` FSD,
-Harbor operations, transcript-derived lecture-note, or Claude Code review
-assistance guidance available in Codex or Claude Code.
+Harbor operations, transcript-derived lecture-note, or Claude Code
+review/research assistance guidance available in Codex or Claude Code.
 
 ```text
 .

@@ -154,9 +154,12 @@ Treat a Claude-assisted review as complete only when all of these hold:
 - The stderr log has no auth, quota, rate-limit, permission, or tool failure.
 - The response refers to the requested target or clearly reviewed the supplied
   artifact.
-- Codex verified every finding it cites or acts on against local files, tests,
-  or the reviewed artifact. At minimum, spot-check the top one to three findings
-  before summarizing the review.
+- For research runs, the response separates source quality, caveats, and
+  inference from directly sourced evidence.
+- Codex verified every finding, source claim, or recommendation it cites or
+  acts on against local files, tests, original sources, or the reviewed
+  artifact. At minimum, spot-check the top one to three findings before
+  summarizing the result.
 
 If any criterion fails, report the review attempt as failed or partial rather
 than summarizing it as a completed Claude review.

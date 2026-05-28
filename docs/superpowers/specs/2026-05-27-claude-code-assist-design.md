@@ -3,9 +3,10 @@
 ## Purpose
 
 Create a `claude-code-assist` skill for using Claude Code from Codex through
-the local `claude` CLI. The skill should help Codex request focused reviews
-and bounded delegated work from Claude Code while keeping Codex responsible for
-scope control, evidence checks, and final integration.
+the local `claude` CLI. The skill should help Codex request focused reviews,
+source-backed research, and bounded delegated work from Claude Code while
+keeping Codex responsible for scope control, evidence checks, source checking,
+and final integration.
 
 This is a CLI-first skill. Codex may mention plugin-based Claude Code paths only
 as optional environment-specific affordances when they are actually available.
@@ -15,16 +16,18 @@ The portable, documented path is `claude -p`.
 
 - Provide a repeatable workflow for asking Claude Code to review specs, plans,
   diffs, PRs, and selected files.
+- Provide a repeatable workflow for source-backed research when the user wants
+  Claude to synthesize external docs, current practices, or comparisons.
 - Provide a repeatable workflow for delegating bounded investigation, analysis,
   and patch-planning tasks to Claude Code.
 - Prefer file-path-based prompts over large inline prompts.
 - Keep review findings advisory until Codex verifies them against the repo,
   runtime evidence, tests, or source artifacts.
 - Document common Claude CLI failure modes and recovery paths.
-- Use Opus as the default Claude model for review and delegation, while
+- Use Opus as the default Claude model for review, research, and delegation, while
   allowing the user to request Sonnet, Haiku, the CLI default, or another
   locally available model.
-- Default to read-only Claude CLI permission modes for review and delegation
+- Default to read-only Claude CLI permission modes for review, research, and delegation
   unless the user explicitly requests edit-capable delegation.
 - Keep the skill concise enough to load as normal Codex skill context.
 
@@ -33,6 +36,8 @@ The portable, documented path is `claude -p`.
 - Do not create a wrapper script in the first version.
 - Do not hide Claude CLI commands behind custom automation.
 - Do not treat Claude Code output as automatically authoritative.
+- Do not treat Claude's research synthesis as a substitute for checking primary
+  sources or live volatile facts before acting.
 - Do not delegate secrets handling, privileged live production changes, or
   tasks that require unclear approvals.
 - Do not depend on a Claude Code MCP tool being available in Codex.
@@ -51,6 +56,7 @@ skills/claude-code-assist/
 └── references/
     ├── cli-patterns.md
     ├── review-prompts.md
+    ├── research-prompts.md
     ├── delegation-prompts.md
     └── failure-recovery.md
 ```
@@ -64,6 +70,8 @@ Claude Code, Claude CLI, Claude Opus, or an external Claude pass for:
 - plan review
 - spec review
 - diff or PR review
+- web or source research
+- best-practices research
 - investigation delegation
 - bounded implementation advice
 - second-opinion architecture or risk analysis
@@ -78,13 +86,14 @@ specifically wants Claude Code or Claude CLI involved.
 1. State that `claude-code-assist` is being used.
 2. Probe the available CLI path with `command -v claude`, `claude --version`,
    and a minimal print-mode smoke check when needed.
-3. Classify the request as review or delegation.
+3. Classify the request as review, research, or delegation.
 4. Narrow the target to explicit file paths, diffs, commits, or commands.
 5. Choose the relevant reference file.
 6. Run a focused `claude -p` prompt from the repository root using absolute
    paths, Opus by default, and read-only permissions by default.
 7. Treat Claude's output as advisory.
-8. Verify findings before editing or reporting final conclusions.
+8. Verify findings, source claims, and recommendations before editing or
+   reporting final conclusions.
 
 The first-version `SKILL.md` must include the exact H2 sections required by
 `scripts/validate_repo.py`:
@@ -298,7 +307,7 @@ CLI default, or a full model identifier. This bootstrap review uses raw
 The review should focus on:
 
 - missing workflow constraints
-- unclear boundaries between review and delegation
+- unclear boundaries between review, research, and delegation
 - risks caused by using `claude` CLI directly
 - reference-file organization
 - validation gaps
@@ -309,14 +318,14 @@ Do not paste the full document inline unless the file-path-based request fails.
 
 - The skill name is `claude-code-assist`.
 - The skill is CLI-first and does not require a callable Claude Code MCP tool.
-- The skill supports both review and delegation lanes.
+- The skill supports review, research, and delegation lanes.
 - The skill has no first-version wrapper script.
 - The skill uses references for detailed prompt templates and failure recovery.
 - `SKILL.md` contains `## Quick Start`, `## Workflow`,
   `## Failure Fallback`, and `## Examples`.
 - The Claude CLI model default is Opus, with explicit user-controlled override
   support for Sonnet, Haiku, the CLI default, or another local model id.
-- The Claude CLI defaults are read-only for review and analysis.
+- The Claude CLI defaults are read-only for review, research, and analysis.
 - Marketplace bundle updates are part of the implementation plan.
 - The repository validator passes.
 - The design receives a Claude review with Opus as the default model before
@@ -329,6 +338,6 @@ Do not paste the full document inline unless the file-path-based request fails.
 ```yaml
 interface:
   display_name: "Claude Code Assist"
-  short_description: "Use Claude Code CLI for focused reviews and bounded delegation from Codex"
-  default_prompt: "Use $claude-code-assist to ask Claude Code for a focused review or bounded delegated analysis."
+  short_description: "Use Claude Code CLI for reviews, research, and bounded delegation from Codex"
+  default_prompt: "Use $claude-code-assist to ask Claude Code for a focused review, source-backed research, or bounded delegated analysis."
 ```

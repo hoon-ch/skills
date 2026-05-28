@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and publish a `claude-code-assist` skill that lets Codex use the local Claude Code CLI for focused review and bounded delegation.
+**Goal:** Build and publish a `claude-code-assist` skill that lets Codex use the local Claude Code CLI for focused review, source-backed research, and bounded delegation.
 
-**Architecture:** The skill is documentation-first and CLI-first. `SKILL.md` contains the trigger behavior, required validator sections, and safe default workflow; `references/` carries reusable command patterns, review prompts, delegation prompts, and failure recovery guidance. The repository marketplace manifest publishes the skill through the existing `all-skills` bundle; the Codex plugin continues to consume the shared `skills/` symlink.
+**Architecture:** The skill is documentation-first and CLI-first. `SKILL.md` contains the trigger behavior, required validator sections, and safe default workflow; `references/` carries reusable command patterns, review prompts, research prompts, delegation prompts, and failure recovery guidance. The repository marketplace manifest publishes the skill through the existing `all-skills` bundle; the Codex plugin continues to consume the shared `skills/` symlink.
 
 **Tech Stack:** Markdown skill files, YAML agent metadata, JSON marketplace manifest, Python repository validator, `skills.sh` CLI, Claude Code CLI (`claude -p`).
 
@@ -20,6 +20,8 @@
   - Responsibility: concrete Claude CLI invocation patterns, model selection, permission modes, evidence capture, and long-running command handling.
 - Create: `skills/claude-code-assist/references/review-prompts.md`
   - Responsibility: reusable review prompt templates for specs, plans, diffs, PRs, tests, and security-sensitive artifacts.
+- Create: `skills/claude-code-assist/references/research-prompts.md`
+  - Responsibility: reusable research prompt templates for source-backed technical research, best-practices research, comparative research, and research with local context.
 - Create: `skills/claude-code-assist/references/delegation-prompts.md`
   - Responsibility: reusable delegation prompt templates for read-only investigation, patch proposal, test strategy, architecture trade-off review, and failure-log analysis.
 - Create: `skills/claude-code-assist/references/failure-recovery.md`
@@ -114,13 +116,14 @@ Edit `skills/claude-code-assist/SKILL.md` to this exact content:
 ````markdown
 ---
 name: claude-code-assist
-description: Use Claude Code CLI from Codex for focused reviews, second opinions, and bounded delegation. Use when the user asks Codex to use Claude Code, Claude CLI, Claude Opus, or an external Claude pass for code review, spec review, plan review, diff or PR review, investigation delegation, patch-shape advice, test strategy, architecture trade-off analysis, or failure-log analysis.
+description: Use Claude Code CLI from Codex for focused reviews, research, second opinions, and bounded delegation. Use when the user asks Codex to use Claude Code, Claude CLI, Claude Opus, or an external Claude pass for code review, spec review, plan review, diff or PR review, web or source research, best-practices research, investigation delegation, patch-shape advice, test strategy, architecture trade-off analysis, or failure-log analysis.
 ---
 
 # Claude Code Assist
 
-Use this skill when Codex should ask Claude Code for an external review or a
-bounded delegated analysis through the local `claude` CLI.
+Use this skill when Codex should ask Claude Code for an external review,
+source-backed research, or bounded delegated analysis through the local
+`claude` CLI.
 
 This skill is CLI-first. Do not depend on a callable Claude Code MCP tool being
 available in Codex. Use `claude -p` from the target repository root, pass
@@ -258,8 +261,8 @@ Edit `skills/claude-code-assist/agents/openai.yaml` to this exact content:
 ```yaml
 interface:
   display_name: "Claude Code Assist"
-  short_description: "Use Claude Code CLI for focused reviews and bounded delegation from Codex"
-  default_prompt: "Use $claude-code-assist to ask Claude Code for a focused review or bounded delegated analysis."
+  short_description: "Use Claude Code CLI for reviews, research, and bounded delegation from Codex"
+  default_prompt: "Use $claude-code-assist to ask Claude Code for a focused review, source-backed research, or bounded delegated analysis."
 ```
 
 - [ ] **Step 3: Run repository validation and observe the expected marketplace failure**
