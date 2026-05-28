@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude Code Assist"
+  short_description: "Use Claude Code CLI for focused reviews and bounded delegation from Codex"
+  default_prompt: "Use $claude-code-assist to ask Claude Code for a focused review or bounded delegated analysis."
