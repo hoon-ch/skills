@@ -17,7 +17,7 @@ Use a minimal smoke prompt when the install, auth state, or model alias is
 unclear:
 
 ```bash
-claude -p --permission-mode plan --allowed-tools "" \
+claude -p --permission-mode plan --tools "" \
   --model "${CLAUDE_ASSIST_MODEL:-opus}" \
   "Reply with READY if Claude CLI is available."
 ```
