@@ -1,0 +1,4 @@
+interface:
+  display_name: "Claude Code Assist"
+  short_description: "Replace with a short human-facing summary"
+  default_prompt: "Use $claude-code-assist for the task described by the user."
