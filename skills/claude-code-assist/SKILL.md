@@ -43,6 +43,7 @@ When the output will be used as implementation evidence, capture it:
 
 ```bash
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+TARGET="$REPO_ROOT/docs/superpowers/specs/example-design.md"
 mkdir -p "$REPO_ROOT/.codex/claude-reviews"
 claude -p --permission-mode plan --allowed-tools "Read,Grep,Glob" \
   --model "${CLAUDE_ASSIST_MODEL:-opus}" \
