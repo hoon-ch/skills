@@ -1,6 +1,6 @@
 # Review Prompts
 
-Use these templates with `claude -p --permission-mode plan --allowed-tools
+Use these templates with `claude -p --permission-mode plan --tools
 "Read,Grep,Glob"` from the repository root. Replace bracketed placeholders with
 absolute paths, PR identifiers, or concrete review scope.
 

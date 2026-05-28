@@ -58,7 +58,7 @@ guessing from prior commits or chat history.
 For review, delegation, or orchestration skills:
 
 - document command examples that are safe to copy
-- state the default model, permission mode, and allowed tool surface
+- state the default model, permission mode, and available tool surface
 - describe how to capture and ignore generated review artifacts
 - keep reusable prompts in `references/`
 - distinguish content feedback from tool, auth, quota, or wrapper failures
