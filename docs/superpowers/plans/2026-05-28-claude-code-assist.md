@@ -10,6 +10,11 @@
 
 ---
 
+Implementation note: this plan is a historical execution artifact. The current
+`skills/claude-code-assist/` files are authoritative for the final research
+lane, canonical `Findings` / `No findings.` output marker, and hardened CLI
+failure-recovery behavior.
+
 ## File Structure
 
 - Create: `skills/claude-code-assist/SKILL.md`

@@ -3,6 +3,9 @@
 Use these templates when Claude performs source-backed research for Codex.
 Research output is advisory. Codex owns source checking, final judgment, and
 any implementation or operational action that follows.
+Claude can produce plausible but wrong URLs, dates, version numbers, paper
+titles, and quotations. Verify any cited URL, version, date, quote, or source
+claim directly against the original source before relying on it.
 
 Run research from the target repository root with plan mode. Use
 `Read,Grep,Glob,WebSearch,WebFetch` only when web access is needed. If the
