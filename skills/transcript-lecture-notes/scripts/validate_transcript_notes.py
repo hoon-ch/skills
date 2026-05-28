@@ -13,6 +13,18 @@ SECTION_RE = re.compile(r"^##\s+(.+?)\s*$", re.M)
 LINK_RE = re.compile(r"\[[^\]]+\]\((.+)\)")
 VALID_KINDS = {"transcript_lecture_article"}
 VALID_SOURCE_TYPES = {"srt", "vtt", "markdown", "text"}
+FORBIDDEN_GENERIC_PHRASES = [
+    "turns the source transcript into a readable",
+    "covers the lesson material from the source transcript",
+    "use the lecture flow and checklist as the study surface",
+]
+COMMAND_START_RE = re.compile(
+    r"^(kubectl|kubeadm|docker|nerdctl|crictl|ctr|helm|etcdctl|etcdutl|openssl|base64|"
+    r"curl|wget|ip|route|ss|netstat|nslookup|dig|ping|traceroute|iptables|"
+    r"tcpdump|cat|ls|cd|vi|vim|nano|mkdir|rm|cp|mv|systemctl|journalctl|"
+    r"export|echo|ssh|scp|chmod|sudo|apt-get|apt|git|kube-scheduler|kube-apiserver|"
+    r"kube-controller-manager|kubelet|kube-proxy|ps|alias)\b"
+)
 
 
 def parse_frontmatter(text: str, path: Path) -> dict[str, str]:
@@ -67,6 +79,30 @@ def has_embedded_timed_transcript(text: str) -> bool:
     return len(re.findall(r"^\s*\d{2}:\d{2}:\d{2}[,.]\d{3}\s+-->\s+", text, re.M)) >= 5
 
 
+def fenced_blocks_in_section(text: str, heading: str) -> list[str]:
+    body = section_body(text, heading)
+    return re.findall(r"```(?:\w+)?\n(.*?)```", body, re.S)
+
+
+def validate_quality(note: Path, text: str) -> list[str]:
+    errors: list[str] = []
+    lowered = text.lower()
+
+    if re.search(r"^###\s+(source\s+cues?|transcript\s+cues?|cues?)\b", text, re.M | re.I):
+        errors.append(f"{note}: quality lint forbids cue-range headings in article body")
+
+    for phrase in FORBIDDEN_GENERIC_PHRASES:
+        if phrase in lowered:
+            errors.append(f"{note}: quality lint forbids generic filler phrase: {phrase}")
+
+    checklist_items = re.findall(r"^- \[[ xX]\]\s+(.+)", text, re.M)
+    cue_like_items = [item for item in checklist_items if re.match(r"(cues?|source cues?)\s+\d+", item, re.I)]
+    if cue_like_items:
+        errors.append(f"{note}: quality lint requires checklist items to name information units, not cue ranges")
+
+    return errors
+
+
 def validate_cue_count(note: Path, source_path: Path, source_type: str, declared: str | None) -> list[str]:
     errors: list[str] = []
     if source_type == "srt":
@@ -87,7 +123,7 @@ def validate_cue_count(note: Path, source_path: Path, source_type: str, declared
     return errors
 
 
-def validate_note(note: Path, content_root: Path) -> list[str]:
+def validate_note(note: Path, content_root: Path, quality: bool = False) -> list[str]:
     errors: list[str] = []
     text = note.read_text(encoding="utf-8")
     try:
@@ -122,6 +158,9 @@ def validate_note(note: Path, content_root: Path) -> list[str]:
     required = {"TL;DR", "Coverage Checklist", "Source"}
     for section in sorted(required - sections):
         errors.append(f"{note}: missing section ## {section}")
+    title = frontmatter.get("title")
+    if title and not re.search(rf"^#\s+{re.escape(title)}\s*$", text, re.M):
+        errors.append(f"{note}: missing H1 title matching frontmatter title")
 
     if "## Full Transcript" in text:
         errors.append(f"{note}: should link transcript instead of embedding full lecture text")
@@ -138,6 +177,9 @@ def validate_note(note: Path, content_root: Path) -> list[str]:
     if source_path and source_path.exists() and source_type:
         errors.extend(validate_cue_count(note, source_path, source_type, frontmatter.get("source_cue_count")))
 
+    if quality:
+        errors.extend(validate_quality(note, text))
+
     return errors
 
 
@@ -151,6 +193,11 @@ def main() -> int:
         "--require-full-coverage",
         action="store_true",
         help="Require every transcript source to be referenced by at least one note.",
+    )
+    parser.add_argument(
+        "--quality",
+        action="store_true",
+        help="Run stricter article-quality lint in addition to structural validation.",
     )
     args = parser.parse_args()
 
@@ -170,7 +217,7 @@ def main() -> int:
         errors.append(f"No content notes found under: {notes_root}")
 
     for note in content_notes:
-        note_errors = validate_note(note, content_root)
+        note_errors = validate_note(note, content_root, quality=args.quality)
         errors.extend(note_errors)
         if args.verbose and not note_errors:
             print(f"OK {note}")

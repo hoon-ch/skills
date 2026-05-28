@@ -52,6 +52,9 @@ matters.
 Rewrite the transcript as a readable article. Preserve every information unit,
 but do not copy SRT cue blocks.
 
+Use topic headings that a learner would expect in notes. Do not use cue-range
+headings such as `Source cues 1-20`.
+
 ## Commands
 
 ```bash
@@ -67,7 +70,7 @@ Explain what each command proves.
 
 ## Coverage Checklist
 
-- [x] Source information unit represented in the article.
+- [x] Named source information unit represented in the article.
 
 ## Source
 
@@ -115,6 +118,10 @@ Treat a source information unit as anything a learner might need later:
 The checklist is not a summary. It is an audit trail that the article body did
 not drop lecture content.
 
+Checklist items must name the covered information unit. Bad: `Cues 1-20:
+Introduction`. Good: `Gateway API solves multi-tenant ownership issues that
+Ingress handles poorly`.
+
 ## Source Handling Rules
 
 - Link the original transcript; do not paste the whole SRT/VTT/TXT into the
@@ -132,7 +139,26 @@ not drop lecture content.
   English or their original language when clearer.
 - Prefer dense, scannable sections over fluffy prose.
 - Keep commands in fenced `bash` blocks.
+- Use lecture-topic headings, not transcript mechanics.
+- Use lab walkthrough tables or repeated blocks for lab-solution sources.
+- Use concept/exam-oriented sections for conceptual sources.
+- Commands sections must contain executable commands, YAML snippets, or clear
+  command templates. Do not place prose fragments in command fences.
+- Avoid generic filler such as "this source transcript turns into a readable
+  note"; write the actual takeaway instead.
 - Do not add external facts unless clearly labeled as outside-transcript
   context.
 - Do not use the note to correct the transcript silently; mention corrections
   only when they matter for learning.
+
+## Quality Gate
+
+Before generating or accepting a large batch, inspect at least three samples:
+
+- a short overview lecture
+- a long concept lecture
+- a lab solution
+
+The sample fails if it is mostly fixed-size transcript chunks, if headings
+mention cue ranges, if commands are not real commands, or if the checklist does
+not describe concrete information units.

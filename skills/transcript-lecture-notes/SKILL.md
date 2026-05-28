@@ -15,6 +15,8 @@ The default pattern is:
 - make each note read like a compact blog post or study article
 - link back to the original transcript instead of embedding the full transcript
 - prove coverage with a checklist, not with duplicated transcript text
+- use lecture-topic headings, not cue-range headings
+- choose a note structure based on the lecture type before writing
 
 ## Quick Start
 
@@ -33,6 +35,10 @@ The default pattern is:
    - `Source` link
 5. Run the bundled validator, `scripts/validate_transcript_notes.py`, before
    reporting completion.
+
+Do not treat validator success as sufficient quality. The validator is a gate,
+not the writing standard. Before a large batch, create a small sample and check
+that the sample reads like notes a person would study from.
 
 ## Note Contract
 
@@ -75,6 +81,64 @@ Required sections:
 
 Do not include full raw transcript blocks in normal article notes. The source
 transcript already preserves the original video/audio transcript.
+
+Forbidden output patterns:
+
+- `### Source cues 1-20`, `### Cue 1`, `### Transcript Cue 1`, or any other
+  cue-range heading in the article body
+- generic filler such as "turns the source transcript into a readable note"
+- a `Commands` section containing prose fragments instead of executable
+  commands or configuration snippets
+- checklist items that only repeat a cue range without naming the information
+  unit covered
+- one paragraph per cue or per fixed cue range
+
+## Writing Structures
+
+Pick the structure from the source type and lecture intent. Adapt headings to
+the topic, but keep the required validation sections stable.
+
+For concept lectures:
+
+1. `## TL;DR`
+2. `## Why It Matters`
+3. `## Core Concept`
+4. `## How It Works`
+5. `## Examples and Commands` or `## Examples`
+6. `## CKA Exam Notes`
+7. `## Coverage Checklist`
+8. `## Source`
+
+For lab solution lectures:
+
+1. `## TL;DR`
+2. `## Lab Goal`
+3. `## Solution Walkthrough`
+   - use repeated blocks or tables with `Question`, `Observation`, `Command`,
+     `Judgment`, and `Answer` when the source contains explicit lab prompts
+4. `## Commands`
+5. `## CKA Exam Notes`
+6. `## Coverage Checklist`
+7. `## Source`
+
+For demo lectures:
+
+1. `## TL;DR`
+2. `## Demo Goal`
+3. `## Walkthrough`
+4. `## Commands`
+5. `## What To Verify`
+6. `## Coverage Checklist`
+7. `## Source`
+
+For references, articles, FAQs, or exam tips:
+
+1. `## TL;DR`
+2. `## What This Clarifies`
+3. `## Key Guidance`
+4. `## Examples` or `## References`
+5. `## Coverage Checklist`
+6. `## Source`
 
 ## Workflow
 
@@ -131,6 +195,39 @@ transcript already preserves the original video/audio transcript.
    When working inside this skill repository, `<path-to-skill>` is
    `skills/transcript-lecture-notes`.
 
+8. For batch generation, use the helper script when appropriate:
+
+   ```bash
+   python <path-to-skill>/scripts/generate_transcript_notes.py <content-root> \
+     --sections module-01-foundations module-02-operations
+   ```
+
+   After generating a small sample, run the validator with quality lint:
+
+   ```bash
+   python <path-to-skill>/scripts/validate_transcript_notes.py <content-root> \
+     --require-full-coverage --quality
+   ```
+
+9. Sample-gate large batches. Inspect at least:
+   - one short overview lecture
+   - one long concept lecture
+   - one lab solution
+
+   Continue the full batch only if the samples have real topic headings,
+   concrete information units, and no cue-range article structure.
+
+10. For interrupted batches, collect only the missing or invalid source files
+    before retrying generation:
+
+   ```bash
+   python <path-to-skill>/scripts/collect_retry_sources.py <content-root> \
+     --quality --output retry_sources.txt
+   ```
+
+   Feed the retry list back into the generator when supported, instead of
+   deleting and regenerating notes that already passed validation.
+
 ## Failure Fallback
 
 - If a source transcript is ambiguous, keep the note conservative and add the
@@ -141,6 +238,9 @@ transcript already preserves the original video/audio transcript.
   path and the `Source` section link before changing content.
 - If a note lacks coverage confidence, leave `coverage: "needs-review"` and
   tell the user which transcript needs manual review.
+- If a batch generation is interrupted or produces malformed files, use
+  `scripts/collect_retry_sources.py` to rebuild the retry set from current
+  notes and transcripts.
 - Do not rewrite or normalize files inside `transcripts/` unless the user
   explicitly asks for transcript maintenance.
 
@@ -164,6 +264,12 @@ Inspect missing links or checklist gaps:
 python <path-to-skill>/scripts/validate_transcript_notes.py course-root --verbose
 ```
 
+Collect only missing or invalid transcript sources for a retry batch:
+
+```bash
+python <path-to-skill>/scripts/collect_retry_sources.py course-root --quality --output retry_sources.txt
+```
+
 Run the bundled public smoke example from this repository:
 
 ```bash
@@ -175,3 +281,4 @@ python skills/transcript-lecture-notes/scripts/validate_transcript_notes.py skil
 - Read `references/note-format.md` for the canonical note template and
   checklist rules.
 - Use `scripts/validate_transcript_notes.py` after creating or editing notes.
+- Use `scripts/collect_retry_sources.py` after interrupted batch generation.
