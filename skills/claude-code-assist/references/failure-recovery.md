@@ -140,8 +140,10 @@ does not contain the review body that the user and automation can inspect.
 
 Recovery:
 
-1. Validate the failed log with `scripts/validate_review_output.py` and keep the
-   failed attempt log.
+1. Validate the failed log with the portable output validator from
+   `references/cli-patterns.md` and keep the failed attempt log. When working in
+   this skill registry itself, the tested helper script is
+   `skills/claude-code-assist/scripts/validate_review_output.py`.
 2. Run the no-tools smoke prompt with `--no-session-persistence`.
 3. If smoke succeeds, make one narrowed retry with the short fresh-standalone
    prompt from `references/review-prompts.md`.
