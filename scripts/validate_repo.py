@@ -132,6 +132,12 @@ def main() -> int:
         errors.append(f"Missing Codex plugin marketplace: {CODEX_MARKETPLACE_PATH}")
     else:
         codex_marketplace = load_json(CODEX_MARKETPLACE_PATH, errors)
+        if codex_marketplace:
+            if codex_marketplace.get("name") != "hoon-ch-skills":
+                errors.append(f"{CODEX_MARKETPLACE_PATH}: name must be hoon-ch-skills")
+            interface = codex_marketplace.get("interface")
+            if not isinstance(interface, dict) or not interface.get("displayName"):
+                errors.append(f"{CODEX_MARKETPLACE_PATH}: missing interface.displayName")
         plugins = codex_marketplace.get("plugins") if codex_marketplace else None
         if not isinstance(plugins, list) or not plugins:
             errors.append(f"{CODEX_MARKETPLACE_PATH}: missing plugins array")

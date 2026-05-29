@@ -1,4 +1,8 @@
 {
+  "name": "hoon-ch-skills",
+  "interface": {
+    "displayName": "Hoon Ch Skills"
+  },
   "plugins": [
     {
       "name": "hoon-ch-skills",
