@@ -1,0 +1,4 @@
+interface:
+  display_name: "Proxmox Post Install"
+  short_description: "Apply and verify Proxmox no-subscription baseline patches"
+  default_prompt: "Use $proxmox-post-install to configure or verify a Proxmox host after installation."

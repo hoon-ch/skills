@@ -15,12 +15,13 @@
       "source": "./",
       "strict": false,
       "skills": [
-        "./skills/plane-api",
+        "./skills/claude-code-assist",
         "./skills/diverging-ui",
-        "./skills/repo-web-fsd",
         "./skills/harbor",
-        "./skills/transcript-lecture-notes",
-        "./skills/claude-code-assist"
+        "./skills/plane-api",
+        "./skills/proxmox-post-install",
+        "./skills/repo-web-fsd",
+        "./skills/transcript-lecture-notes"
       ]
     }
   ]

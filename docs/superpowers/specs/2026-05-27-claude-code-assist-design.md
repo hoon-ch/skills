@@ -122,11 +122,13 @@ or a trusted temp directory, then pass the absolute file path to Claude.
 Capture review output when it will be used as implementation evidence:
 
 ```bash
-mkdir -p "$REPO_ROOT/.codex/claude-reviews"
+TMP_ROOT="${TMPDIR:-/tmp}"
+TMP_ROOT="${TMP_ROOT%/}"
+REVIEW_DIR="$(mktemp -d "${TMP_ROOT:-/tmp}/claude-code-assist.XXXXXX")"
 claude -p --permission-mode plan --tools "Read,Grep,Glob" \
   --model "${CLAUDE_ASSIST_MODEL:-opus}" \
   "Review the file at $TARGET. Start with a Findings heading, or exactly No findings. if there are no findings." |
-  tee "$REPO_ROOT/.codex/claude-reviews/$(date +%Y%m%d-%H%M%S)-review.md"
+  tee "$REVIEW_DIR/$(date +%Y%m%d-%H%M%S)-review.md"
 ```
 
 Model selection defaults:
