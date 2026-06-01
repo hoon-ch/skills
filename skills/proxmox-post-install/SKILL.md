@@ -1,6 +1,6 @@
 ---
 name: proxmox-post-install
-description: Proxmox VE homelab post-install baseline. Use for fresh or rebuilt Proxmox nodes that should use no-subscription repos, suppress desktop/mobile subscription popups, verify APT updates, or reapply these local patches after package upgrades.
+description: Proxmox VE homelab post-install baseline. Use for fresh or rebuilt Proxmox nodes that should use no-subscription repos, suppress desktop subscription popups, verify APT updates, or reapply these local patches after package upgrades.
 ---
 
 # Proxmox Post Install
@@ -60,8 +60,8 @@ ssh -i ~/.ssh/dx_pve_ed25519 -o BatchMode=yes -o IdentityAgent=none -o Identitie
   'apt-get update && pvesh get /nodes/localhost/subscription --output-format json-pretty && systemctl is-active pveproxy'
 ```
 
-5. Tell the user whether desktop web UI, mobile UI, APT repositories, and
-   `pveproxy` are all verified.
+5. Tell the user whether desktop web UI, subscription API, APT repositories,
+   and `pveproxy` are all verified.
 
 ## First Run Setup
 
@@ -90,8 +90,10 @@ patched, or rollback is needed.
 - If `apt-get update` fails with `401 Unauthorized`, the enterprise repo is
   still active or a stale source file remains.
 - If desktop popup remains after a successful patch, restart `pveproxy` and ask
-  the user to hard-refresh the browser or clear the PWA/browser cache.
-- If mobile popup remains, verify the API directly:
+  the user to hard-refresh the browser or clear the browser cache.
+- If a Proxmox VE 9 mobile popup remains, remember that the Yew-based mobile UI
+  is a separate WASM frontend and is not patched by this baseline. Verify the API
+  directly, but do not report mobile popup suppression as guaranteed:
 
 ```bash
 pvesh get /nodes/localhost/subscription --output-format json-pretty
