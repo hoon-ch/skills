@@ -1,9 +1,25 @@
 {
   "name": "hoon-ch-skills",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260602025953",
   "description": "Personal installable skills maintained by hoon-ch",
+  "author": {
+    "name": "hoon-ch",
+    "email": "hun9211@gmail.com"
+  },
   "skills": "./skills/",
   "interface": {
-    "displayName": "Hoon Ch Skills"
+    "displayName": "Hoon Ch Skills",
+    "shortDescription": "Personal skills for focused Codex workflows.",
+    "longDescription": "A local skill registry for documentation, infrastructure, review, design, and workflow assistance maintained by hoon-ch.",
+    "developerName": "hoon-ch",
+    "category": "Productivity",
+    "capabilities": [
+      "Skills"
+    ],
+    "defaultPrompt": [
+      "Find a skill for this task.",
+      "Review this plan with the right skill.",
+      "Use a workflow skill for this repo."
+    ]
   }
 }
