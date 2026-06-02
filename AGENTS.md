@@ -66,8 +66,17 @@ Codex plugin metadata lives in:
 - `plugins/hoon-ch-skills/.codex-plugin/plugin.json`
 - `plugins/hoon-ch-skills/skills`
 
-Keep `plugins/hoon-ch-skills/skills` as a symlink to `../../skills`. Do not copy
-published skills into the plugin folder; duplicated skill content will drift.
+Treat `skills/` as the source of truth. Keep `plugins/hoon-ch-skills/skills` as
+a generated mirror created by:
+
+```bash
+python3 scripts/sync_codex_plugin_skills.py
+```
+
+Codex GitHub marketplace installation packages only the selected plugin root and
+does not include a symlink target outside that root. Do not manually edit the
+mirrored plugin skills; update `skills/` and rerun the sync script instead. The
+validator enforces that the mirror is present and byte-for-byte synchronized.
 
 ## Validation
 

@@ -62,6 +62,45 @@ def normalized_skill_body(text: str) -> str:
     return "\n".join(body_lines).strip()
 
 
+def files_by_relative_path(root: Path) -> dict[Path, Path]:
+    return {
+        path.relative_to(root): path
+        for path in root.rglob("*")
+        if path.is_file()
+        and "__pycache__" not in path.parts
+        and path.suffix != ".pyc"
+    }
+
+
+def validate_codex_plugin_skill_mirror(errors: list[str]) -> None:
+    mirror = CODEX_PLUGIN_PATH / "skills"
+    if not mirror.exists():
+        errors.append(f"Missing Codex plugin skills path: {mirror}")
+        return
+    if mirror.is_symlink():
+        errors.append(f"{mirror}: must be a real directory, not a symlink")
+        return
+    if not mirror.is_dir():
+        errors.append(f"{mirror}: must be a directory")
+        return
+
+    source_files = files_by_relative_path(SKILLS_DIR)
+    mirror_files = files_by_relative_path(mirror)
+    missing = sorted(source_files.keys() - mirror_files.keys())
+    extra = sorted(mirror_files.keys() - source_files.keys())
+    changed = sorted(
+        rel_path
+        for rel_path in source_files.keys() & mirror_files.keys()
+        if source_files[rel_path].read_bytes() != mirror_files[rel_path].read_bytes()
+    )
+    if missing:
+        errors.append(f"{mirror}: missing mirrored files: {', '.join(map(str, missing))}")
+    if extra:
+        errors.append(f"{mirror}: contains extra mirrored files: {', '.join(map(str, extra))}")
+    if changed:
+        errors.append(f"{mirror}: mirrored files differ from skills/: {', '.join(map(str, changed))}")
+
+
 def main() -> int:
     errors: list[str] = []
     if not SKILLS_DIR.exists():
@@ -205,11 +244,7 @@ def main() -> int:
             if not isinstance(interface, dict) or not interface.get("displayName"):
                 errors.append(f"{CODEX_PLUGIN_MANIFEST_PATH}: missing interface.displayName")
 
-    codex_skill_link = CODEX_PLUGIN_PATH / "skills"
-    if not codex_skill_link.exists():
-        errors.append(f"Missing Codex plugin skills path: {codex_skill_link}")
-    elif codex_skill_link.resolve() != SKILLS_DIR.resolve():
-        errors.append(f"{codex_skill_link}: must resolve to {SKILLS_DIR}")
+    validate_codex_plugin_skill_mirror(errors)
 
     if errors:
         for error in errors:

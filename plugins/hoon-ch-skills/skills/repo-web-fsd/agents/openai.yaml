@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Web FSD"
+  short_description: "Mode-aware FSD placement and review for apps/web"
+  default_prompt: "Use $repo-web-fsd to detect the architecture mode, apply the right FSD ownership rules, and recommend the correct placement."

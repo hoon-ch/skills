@@ -1,0 +1,4 @@
+interface:
+  display_name: "Transcript Lecture Notes"
+  short_description: "Create blog-style notes from linked transcripts"
+  default_prompt: "Use $transcript-lecture-notes to create or review transcript-derived lecture article notes while preserving source transcripts as linked files."
