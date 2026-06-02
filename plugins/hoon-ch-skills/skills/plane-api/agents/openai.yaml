@@ -1,0 +1,4 @@
+interface:
+  display_name: "Plane API"
+  short_description: "Direct access to the Plane REST API through catalog-backed HTTP calls"
+  default_prompt: "Use $plane-api to inspect or mutate Plane resources through direct REST API calls, preferring catalog and workflow helpers before falling back to raw requests."

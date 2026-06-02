@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:03,000
+Welcome to this short lesson on release notes.
+
+2
+00:00:03,200 --> 00:00:07,000
+Release notes explain what changed, why it matters, and what users should do next.
+
+3
+00:00:07,200 --> 00:00:11,000
+A good note separates new features, fixes, and known issues.
+
+4
+00:00:11,200 --> 00:00:15,000
+If an update requires action, put that action near the top.
+
+5
+00:00:15,200 --> 00:00:19,000
+Keep the original changelog available so reviewers can verify that nothing was missed.
