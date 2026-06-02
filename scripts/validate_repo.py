@@ -46,18 +46,37 @@ def load_json(path: Path, errors: list[str]) -> dict:
     return data
 
 
+def normalized_skill_body(text: str) -> str:
+    lines = text.splitlines()
+    body_start = 0
+    if lines and lines[0].strip() == "---":
+        for index, line in enumerate(lines[1:], start=1):
+            if line.strip() == "---":
+                body_start = index + 1
+                break
+    body_lines = [
+        line.rstrip()
+        for line in lines[body_start:]
+        if not line.startswith("# ")
+    ]
+    return "\n".join(body_lines).strip()
+
+
 def main() -> int:
     errors: list[str] = []
     if not SKILLS_DIR.exists():
         errors.append(f"Missing skills directory: {SKILLS_DIR}")
     else:
+        descriptions: dict[str, Path] = {}
+        bodies: dict[str, Path] = {}
         for skill_dir in sorted(path for path in SKILLS_DIR.iterdir() if path.is_dir()):
             skill_md = skill_dir / "SKILL.md"
             if not skill_md.exists():
                 errors.append(f"Missing SKILL.md: {skill_dir}")
                 continue
+            skill_text = skill_md.read_text()
             try:
-                frontmatter = parse_frontmatter(skill_md.read_text())
+                frontmatter = parse_frontmatter(skill_text)
             except ValueError as exc:
                 errors.append(f"{skill_md}: {exc}")
                 continue
@@ -67,9 +86,17 @@ def main() -> int:
                 errors.append(f"{skill_md}: missing frontmatter name")
             if not description:
                 errors.append(f"{skill_md}: missing frontmatter description")
+            elif description in descriptions:
+                errors.append(f"{skill_md}: duplicate description also used by {descriptions[description]}")
+            else:
+                descriptions[description] = skill_md
             if name and name != skill_dir.name:
                 errors.append(f"{skill_md}: frontmatter name '{name}' does not match folder '{skill_dir.name}'")
-            skill_text = skill_md.read_text()
+            body = normalized_skill_body(skill_text)
+            if body and body in bodies:
+                errors.append(f"{skill_md}: duplicate skill body also used by {bodies[body]}")
+            elif body:
+                bodies[body] = skill_md
             for section in REQUIRED_SKILL_SECTIONS:
                 if section not in skill_text:
                     errors.append(f"{skill_md}: missing section '{section}'")
