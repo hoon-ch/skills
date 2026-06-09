@@ -2,6 +2,8 @@
 
 Personal skill registry for Codex and Claude Code.
 
+[한국어 README](README.ko.md)
+
 This repository contains small, installable skills for workflows that are worth
 reusing across projects. Each published skill lives under `skills/<name>` and is
 designed to work with [`skills.sh`](https://skills.sh/).
@@ -26,6 +28,8 @@ npx skills add hoon-ch/skills -g \
   --skill diverging-ui \
   --skill repo-web-fsd \
   --skill harbor \
+  --skill proxmox-post-install \
+  --skill technical-writing \
   --skill transcript-lecture-notes \
   --skill claude-code-assist \
   --yes
@@ -55,8 +59,57 @@ All three install surfaces expose the same published skills from `skills/`.
 | `diverging-ui` | You are creating or redesigning frontend UI and need to avoid the most generic first-pass design direction. |
 | `repo-web-fsd` | You need repository-specific guidance for `apps/web` placement, FSD boundaries, or design-system ownership decisions. |
 | `harbor` | You need Harbor registry operations guidance for Kubernetes/GitOps, scanners, robot accounts, replication, or ArgoCD drift. |
+| `proxmox-post-install` | You need a Proxmox VE homelab post-install baseline for no-subscription repositories, popup suppression, and APT verification. |
+| `technical-writing` | You need to create, revise, or review developer and end-user documentation, especially Korean-first technical writing. |
 | `transcript-lecture-notes` | You need to turn video or audio transcripts into blog-style Markdown notes while keeping SRT/VTT/TXT/Markdown transcripts as linked source files. |
 | `claude-code-assist` | You need Codex to use Claude Code CLI for focused reviews, source-backed research, second opinions, bounded delegation, or review evidence capture. |
+
+## Maintainer Workflow
+
+Use this section when you are changing the registry itself rather than
+installing skills from it.
+
+### Add Or Update A Skill
+
+Create a new skill scaffold from the repository root:
+
+```bash
+python3 scripts/create_skill.py my-skill --with agents,references,scripts
+```
+
+Then edit `skills/<name>/SKILL.md` and any supporting files under
+`skills/<name>/references/`, `skills/<name>/scripts/`, or
+`skills/<name>/agents/`.
+
+Keep `SKILL.md` concise. Put long procedures, prompts, troubleshooting notes,
+and examples in `references/`. Put repeatable setup, doctor, or validation logic
+in `scripts/`.
+
+### Publish-Surface Checklist
+
+After editing `skills/`, refresh the Codex plugin mirror and validate every
+install surface:
+
+```bash
+python3 scripts/sync_codex_plugin_skills.py
+python3 scripts/validate_repo.py
+npx skills add . -g --list
+```
+
+Expected results:
+
+- `validate_repo.py` prints `Repository is valid!`
+- `npx skills add . -g --list` lists only the published skills under `skills/`
+- `plugins/hoon-ch-skills/skills` matches `skills/` byte-for-byte
+
+### What Not To Edit
+
+- Do not edit `plugins/hoon-ch-skills/skills` directly. It is generated from
+  `skills/`.
+- Do not add template-only files named `SKILL.md`; use `SKILL.md.template`.
+- Do not put maintainer policy in `README.md` when it belongs in `AGENTS.md`.
+  Keep this README focused on installation, published skills, and the common
+  maintainer path.
 
 ## Documentation And Review Evidence
 
@@ -89,8 +142,17 @@ review/research assistance guidance available in Codex or Claude Code.
 │       └── marketplace.json
 ├── plugins/
 │   └── hoon-ch-skills/
+│       ├── .codex-plugin/
+│       └── skills/
 ├── skills/
 │   └── <skill-name>/
+├── scripts/
+│   ├── create_skill.py
+│   ├── sync_codex_plugin_skills.py
+│   └── validate_repo.py
+├── spec/
+│   ├── quality-bar.md
+│   └── repository-layout.md
 └── template/
     └── SKILL.md.template
 ```
