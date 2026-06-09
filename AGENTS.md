@@ -1,8 +1,50 @@
-# Repository Instructions
+# PROJECT KNOWLEDGE BASE
+
+**Generated:** 2026-06-09
+**Commit:** ad9c249
+**Branch:** detached HEAD
 
 This repository is a `skills.sh`-first skill registry. Treat `skills/` as the
 published surface and keep user-facing README content separate from maintenance
 rules.
+
+## Overview
+
+Personal installable skill registry for Codex and Claude Code. The repo exposes
+the same skills through `skills.sh`, the Claude manifest, and a Codex plugin.
+
+## Structure
+
+```text
+.
+├── skills/                    # source of truth for published skills
+├── plugins/hoon-ch-skills/    # Codex plugin package and generated skill mirror
+├── scripts/                   # scaffold, sync, and validation helpers
+├── spec/                      # repository layout and quality bar
+├── template/                  # starter scaffold; not installable
+└── docs/superpowers/          # historical specs and plans
+```
+
+## Where To Look
+
+| Task | Location | Notes |
+| --- | --- | --- |
+| Add or edit a published skill | `skills/<name>/` | Edit source first, then sync the Codex plugin mirror. |
+| Add a new skill scaffold | `scripts/create_skill.py` | Use `--with agents,references,scripts` when the workflow needs them. |
+| Validate publishability | `scripts/validate_repo.py` | Checks skill sections, marketplace manifests, and mirror parity. |
+| Update Codex plugin package | `plugins/hoon-ch-skills/.codex-plugin/plugin.json` | Keep skill content out of this package except for the generated mirror. |
+| Refresh plugin skill content | `scripts/sync_codex_plugin_skills.py` | Recreates `plugins/hoon-ch-skills/skills` from `skills/`. |
+| Explain repo policy | `spec/repository-layout.md`, `spec/quality-bar.md` | Treat current scripts as source of truth if older docs disagree. |
+
+## Code Map
+
+| Symbol | Type | Location | Role |
+| --- | --- | --- | --- |
+| `main` | function | `scripts/validate_repo.py` | Repository validation gate. |
+| `validate_codex_plugin_skill_mirror` | function | `scripts/validate_repo.py` | Enforces real-directory mirror parity. |
+| `main` | function | `scripts/sync_codex_plugin_skills.py` | Rebuilds the Codex plugin skill mirror. |
+| `render_skill` | function | `scripts/create_skill.py` | Generates the default `SKILL.md` scaffold. |
+| `REQUIRED_SKILL_SECTIONS` | constant | `scripts/validate_repo.py` | Required headings for every published skill. |
 
 ## Installed Skill Packs
 
@@ -77,6 +119,10 @@ Codex GitHub marketplace installation packages only the selected plugin root and
 does not include a symlink target outside that root. Do not manually edit the
 mirrored plugin skills; update `skills/` and rerun the sync script instead. The
 validator enforces that the mirror is present and byte-for-byte synchronized.
+
+Some older docs under `docs/superpowers/` and `spec/repository-layout.md` still
+mention a symlink mirror. Current behavior is a real mirrored directory; trust
+`scripts/sync_codex_plugin_skills.py`, `scripts/validate_repo.py`, and this file.
 
 ## Validation
 

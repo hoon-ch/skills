@@ -7,6 +7,11 @@ This document defines the minimum standard for a publishable skill in this repos
 - `SKILL.md` with YAML frontmatter
 - a clear description of when the skill should be used
 - at least one concrete example or command
+- the validator-required sections:
+  - `## Quick Start`
+  - `## Workflow`
+  - `## Failure Fallback`
+  - `## Examples`
 
 ## Strongly Recommended For Reusable Tool Skills
 
@@ -63,6 +68,24 @@ For review, delegation, or orchestration skills:
 - keep reusable prompts in `references/`
 - distinguish content feedback from tool, auth, quota, or wrapper failures
 
+## Repository Documentation
+
+When changing registry-level behavior, update the documentation surface that
+matches the reader:
+
+- `README.md`: install commands, published skill list, and common maintainer
+  workflow
+- `AGENTS.md`: agent-facing maintenance policy and repository-specific rules
+- `spec/`: layout contracts, quality expectations, and publishability criteria
+- `skills/<name>/SKILL.md`: user-facing trigger and operational workflow for one
+  skill
+- `skills/<name>/references/`: detailed protocols, prompt templates, examples,
+  and troubleshooting notes
+
+Do not rely on repository history or chat context for publish-critical behavior.
+If a command, path, plugin field, or validation rule is required, document it in
+one of the files above and keep it aligned with `scripts/validate_repo.py`.
+
 ## Bundle Readiness
 
 A skill is ready to appear in a category bundle when:
@@ -70,5 +93,6 @@ A skill is ready to appear in a category bundle when:
 - it passes `scripts/validate_repo.py`
 - its setup path and smoke path work
 - its `SKILL.md` reflects the actual CLI and file layout
+- `npx skills add . -g --list` shows the expected published skill set
 
 Category bundles should only be added when at least two related skills meet that bar.

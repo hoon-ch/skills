@@ -1,6 +1,7 @@
 # Repository Layout
 
-This repository is a personal, `skills.sh`-first skill registry modeled after `anthropics/skills`.
+This repository is a personal, `skills.sh`-first skill registry modeled after
+`anthropics/skills`.
 
 ## Operating Model
 
@@ -25,7 +26,7 @@ The repo stays broad. Each skill stays narrow.
 - `scripts/`: repo maintenance helpers
 - `.claude-plugin/`: bundle manifest for marketplace-style installation
 - `.agents/plugins/`: Codex plugin marketplace metadata
-- `plugins/`: Codex plugin package metadata; skill content must point back to `skills/`
+- `plugins/`: Codex plugin package metadata and the generated Codex skill mirror
 
 ## Skill Folder Shape
 
@@ -72,9 +73,16 @@ Expose this repo to Codex through `.agents/plugins/marketplace.json` and
 Rules:
 
 - Keep `skills/` as the only source of published skill content
-- Keep `plugins/hoon-ch-skills/skills` as a symlink to `../../skills`
-- Do not copy skill folders into `plugins/hoon-ch-skills/`
+- Keep `plugins/hoon-ch-skills/skills` as a generated real directory
+- Rebuild the mirror with `python3 scripts/sync_codex_plugin_skills.py`
+- Do not manually edit copied skill folders in `plugins/hoon-ch-skills/skills`
+- Keep `plugins/hoon-ch-skills/.codex-plugin/plugin.json` pointing at `./skills/`
 - Validate Codex plugin metadata with `scripts/validate_repo.py`
+
+The mirror is a real directory because marketplace packaging includes the plugin
+root, not symlink targets outside that root. The validator fails if the mirror is
+missing, is a symlink, contains extra files, misses source files, or differs
+byte-for-byte from `skills/`.
 
 ## Persistent Setup Pattern
 
@@ -91,7 +99,12 @@ When a skill benefits from saved defaults, prefer this contract:
 Run:
 
 ```bash
+python3 scripts/sync_codex_plugin_skills.py
 python3 scripts/validate_repo.py
+npx skills add . -g --list
 ```
 
 before publishing structural changes or adding new skills and bundles.
+
+`scripts/validate_repo.py` is the executable source of truth for required
+sections, bundle completeness, Codex plugin metadata, and mirror parity.
