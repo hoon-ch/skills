@@ -1,0 +1,4 @@
+interface:
+  display_name: "NestJS Best Practices"
+  short_description: "Production NestJS architecture, DI, security, performance, and testing rules"
+  default_prompt: "Use $nestjs-best-practices when writing, reviewing, or refactoring NestJS application code."
