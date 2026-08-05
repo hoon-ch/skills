@@ -15,6 +15,7 @@
       "source": "./",
       "strict": false,
       "skills": [
+        "./skills/apply-diataxis",
         "./skills/claude-code-assist",
         "./skills/diverging-ui",
         "./skills/harbor",

@@ -29,6 +29,7 @@ npx skills add hoon-ch/skills -g \
   --skill repo-web-fsd \
   --skill harbor \
   --skill proxmox-post-install \
+  --skill apply-diataxis \
   --skill technical-writing \
   --skill transcript-lecture-notes \
   --skill claude-code-assist \
@@ -60,6 +61,7 @@ npx skills add hoon-ch/skills -g --list
 | `repo-web-fsd` | `apps/web` 배치, FSD boundary, design-system ownership을 판단할 때 씁니다. |
 | `harbor` | Kubernetes/GitOps 환경에서 Harbor registry 운영, scanner, robot account, replication, ArgoCD drift를 다룰 때 씁니다. |
 | `proxmox-post-install` | Proxmox VE homelab에서 no-subscription repository, subscription popup suppression, APT verification baseline이 필요할 때 씁니다. |
+| `apply-diataxis` | Diátaxis로 문서 유형을 분류하고, 혼합된 유형을 분리하거나, 품질을 감사하고 사용자 필요 중심의 문서 구조를 설계할 때 씁니다. |
 | `technical-writing` | README, tutorial, troubleshooting, reference, architecture explanation 같은 개발자/사용자 문서를 작성하거나 다듬을 때 씁니다. Korean-first technical writing에도 맞춰져 있습니다. |
 | `transcript-lecture-notes` | SRT/VTT/TXT/Markdown transcript를 보존하면서 강의나 영상 transcript를 blog-style Markdown note로 바꿀 때 씁니다. |
 | `claude-code-assist` | Codex가 Claude Code CLI를 사용해 review, source-backed research, second opinion, bounded delegation, review evidence capture를 수행해야 할 때 씁니다. |

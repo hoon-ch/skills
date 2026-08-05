@@ -1,0 +1,4 @@
+interface:
+  display_name: "Apply Diátaxis"
+  short_description: "Classify, audit, and organize technical docs with Diátaxis"
+  default_prompt: "Use $apply-diataxis to classify the reader's need and create or improve source-grounded technical documentation."

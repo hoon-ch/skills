@@ -29,6 +29,7 @@ npx skills add hoon-ch/skills -g \
   --skill repo-web-fsd \
   --skill harbor \
   --skill proxmox-post-install \
+  --skill apply-diataxis \
   --skill technical-writing \
   --skill transcript-lecture-notes \
   --skill claude-code-assist \
@@ -60,6 +61,7 @@ All three install surfaces expose the same published skills from `skills/`.
 | `repo-web-fsd` | You need repository-specific guidance for `apps/web` placement, FSD boundaries, or design-system ownership decisions. |
 | `harbor` | You need Harbor registry operations guidance for Kubernetes/GitOps, scanners, robot accounts, replication, or ArgoCD drift. |
 | `proxmox-post-install` | You need a Proxmox VE homelab post-install baseline for no-subscription repositories, popup suppression, and APT verification. |
+| `apply-diataxis` | You need to classify documentation with Diátaxis, separate mixed modes, audit quality, or design need-oriented documentation architecture. |
 | `technical-writing` | You need to create, revise, or review developer and end-user documentation, especially Korean-first technical writing. |
 | `transcript-lecture-notes` | You need to turn video or audio transcripts into blog-style Markdown notes while keeping SRT/VTT/TXT/Markdown transcripts as linked source files. |
 | `claude-code-assist` | You need Codex to use Claude Code CLI for focused reviews, source-backed research, second opinions, bounded delegation, or review evidence capture. |
