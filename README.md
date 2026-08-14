@@ -27,7 +27,9 @@ npx skills add hoon-ch/skills -g \
   --skill plane-api \
   --skill diverging-ui \
   --skill repo-web-fsd \
+  --skill nestjs-best-practices \
   --skill harbor \
+  --skill herdr \
   --skill proxmox-post-install \
   --skill apply-diataxis \
   --skill technical-writing \
@@ -59,7 +61,9 @@ All three install surfaces expose the same published skills from `skills/`.
 | `plane-api` | You need direct Plane REST API access, route probing, project scans, or workflow helpers for Plane Cloud or self-hosted Plane. |
 | `diverging-ui` | You are creating or redesigning frontend UI and need to avoid the most generic first-pass design direction. |
 | `repo-web-fsd` | You need repository-specific guidance for `apps/web` placement, FSD boundaries, or design-system ownership decisions. |
+| `nestjs-best-practices` | You are writing, reviewing, or refactoring NestJS modules, controllers, services, dependency injection, guards, DTOs, validation, database access, testing, microservices, deployment, or security-sensitive code. |
 | `harbor` | You need Harbor registry operations guidance for Kubernetes/GitOps, scanners, robot accounts, replication, or ArgoCD drift. |
+| `herdr` | You are running inside a Herdr session (`HERDR_ENV=1`) and need to inspect or control panes, tabs, workspaces, worktree workspaces, background commands, or another coding agent. |
 | `proxmox-post-install` | You need a Proxmox VE homelab post-install baseline for no-subscription repositories, popup suppression, and APT verification. |
 | `apply-diataxis` | You need to classify documentation with Diátaxis, separate mixed modes, audit quality, or design need-oriented documentation architecture. |
 | `technical-writing` | You need to create, revise, or review developer and end-user documentation, especially Korean-first technical writing. |
