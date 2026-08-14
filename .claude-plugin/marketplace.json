@@ -19,6 +19,7 @@
         "./skills/claude-code-assist",
         "./skills/diverging-ui",
         "./skills/harbor",
+        "./skills/herdr",
         "./skills/nestjs-best-practices",
         "./skills/plane-api",
         "./skills/proxmox-post-install",
