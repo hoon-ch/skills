@@ -35,6 +35,8 @@ npx skills add hoon-ch/skills -g \
   --skill technical-writing \
   --skill transcript-lecture-notes \
   --skill claude-code-assist \
+  --skill crabbox-proxmox \
+  --skill design-taste-frontend \
   --yes
 ```
 
@@ -69,6 +71,8 @@ npx skills add hoon-ch/skills -g --list
 | `technical-writing` | README, tutorial, troubleshooting, reference, architecture explanation 같은 개발자/사용자 문서를 작성하거나 다듬을 때 씁니다. Korean-first technical writing에도 맞춰져 있습니다. |
 | `transcript-lecture-notes` | SRT/VTT/TXT/Markdown transcript를 보존하면서 강의나 영상 transcript를 blog-style Markdown note로 바꿀 때 씁니다. |
 | `claude-code-assist` | Codex가 Claude Code CLI를 사용해 review, source-backed research, second opinion, bounded delegation, review evidence capture를 수행해야 할 때 씁니다. |
+| `crabbox-proxmox` | Proxmox 기반 격리 VM에서 build, run, debug, browser proof를 수행하고 Compose·database·queue 같은 인프라까지 함께 띄워야 할 때 씁니다. |
+| `design-taste-frontend` | landing page, portfolio, 리디자인 작업에서 템플릿처럼 보이는 뻔한 AI 결과물을 피해야 할 때 씁니다. |
 
 ## Maintainer Workflow
 

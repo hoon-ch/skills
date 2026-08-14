@@ -17,6 +17,8 @@
       "skills": [
         "./skills/apply-diataxis",
         "./skills/claude-code-assist",
+        "./skills/crabbox-proxmox",
+        "./skills/design-taste-frontend",
         "./skills/diverging-ui",
         "./skills/harbor",
         "./skills/herdr",

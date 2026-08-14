@@ -35,6 +35,8 @@ npx skills add hoon-ch/skills -g \
   --skill technical-writing \
   --skill transcript-lecture-notes \
   --skill claude-code-assist \
+  --skill crabbox-proxmox \
+  --skill design-taste-frontend \
   --yes
 ```
 
@@ -69,6 +71,8 @@ All three install surfaces expose the same published skills from `skills/`.
 | `technical-writing` | You need to create, revise, or review developer and end-user documentation, especially Korean-first technical writing. |
 | `transcript-lecture-notes` | You need to turn video or audio transcripts into blog-style Markdown notes while keeping SRT/VTT/TXT/Markdown transcripts as linked source files. |
 | `claude-code-assist` | You need Codex to use Claude Code CLI for focused reviews, source-backed research, second opinions, bounded delegation, or review evidence capture. |
+| `crabbox-proxmox` | You need an isolated Proxmox-backed remote-dev VM to build, run, debug, or browser-prove a task, including adjacent infrastructure such as Compose, databases, and queues. |
+| `design-taste-frontend` | You are building or redesigning a landing page, portfolio, or marketing site and need to avoid templated, obviously-AI output. |
 
 ## Maintainer Workflow
 
