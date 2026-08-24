@@ -6,8 +6,9 @@
  */
 
 import { createHash } from "node:crypto";
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { BUDGETS, boundedUtf8, byteLength, compactText, jsonBytes } from "./budget.mjs";
 
 export const WORKER_RECEIPT_SCHEMA = "gjc-fleet-worker-receipt/v1";
@@ -260,17 +261,26 @@ export function compactFleetReceipt(input = {}) {
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]).endsWith("/receipt.mjs")) {
-  // This helper is primarily imported.  Keep accidental direct execution
-  // harmless and explicit rather than dumping an artifact into stdout.
-  if (process.argv.length > 2) {
-    try {
-      const receipt = readWorkerReport(process.argv[2]);
-      assertCompactReceipt(receipt);
-      process.stdout.write(`${JSON.stringify(receipt)}\n`);
-    } catch (error) {
-      console.error(`GJC_FLEET_RECEIPT_FAILED: ${error instanceof Error ? error.message : "unknown error"}`);
-      process.exit(2);
-    }
+function isDirectExecution() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
+  if (process.argv.length < 3) {
+    console.error("GJC_FLEET_RECEIPT_FAILED: usage: receipt.mjs REPORT_PATH");
+    process.exit(2);
+  }
+  try {
+    const receipt = readWorkerReport(process.argv[2]);
+    assertCompactReceipt(receipt);
+    process.stdout.write(`${JSON.stringify(receipt)}\n`);
+  } catch (error) {
+    console.error(`GJC_FLEET_RECEIPT_FAILED: ${error instanceof Error ? error.message : "unknown error"}`);
+    process.exit(2);
   }
 }

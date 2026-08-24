@@ -8,9 +8,10 @@ import {
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -29,9 +30,25 @@ import {
   newTestLedger,
 } from "./budget.mjs";
 import { runCanary, validateCanaryCommand } from "./canary.mjs";
+import { compactCanaryDiagnostic } from "./canary.mjs";
+import {
+  buildPromptPlan,
+  describeAgentSelection,
+  nextPromptStep,
+  reconcileFallback,
+  selectLeafAgent,
+} from "./agent-target.mjs";
 import { compactFleetReceipt, readWorkerReport, receiptHasOnlyBoundedWorkerFields } from "./receipt.mjs";
 
 const scripts = dirname(fileURLToPath(import.meta.url));
+const repoRoot = existsSync(resolve(process.cwd(), "skills", "gjc-fleet"))
+  ? resolve(process.cwd())
+  : resolve(scripts, "../../..");
+const sourceSkill = resolve(repoRoot, "skills", "gjc-fleet");
+const pluginSkill = resolve(repoRoot, "plugins/hoon-ch-skills/skills/gjc-fleet");
+const localInstalledSkill = resolve(
+  process.env.GJC_FLEET_INSTALLED_PATH ?? join(homedir(), ".gjc", "agent", "skills", "gjc-fleet"),
+);
 const intake = join(scripts, "intake.mjs");
 const preflight = join(scripts, "preflight.mjs");
 const fieldReader = join(scripts, "read-herdr-field.mjs");
@@ -39,6 +56,7 @@ const stateReader = join(scripts, "agent-state.mjs");
 const exclusive = join(scripts, "check-exclusive.mjs");
 const dialogueFixture = join(scripts, "fixtures", "conversational-current-workspace.json");
 const regressionFixture = join(scripts, "fixtures", "wcopy-mac-context-thin.json");
+const symlinkRegressionFixture = join(scripts, "fixtures", "symlink-canary-context-thin.json");
 
 function executable(path, source) {
   writeFileSync(path, `#!/usr/bin/env node\n${source}`);
@@ -117,7 +135,13 @@ function runIntake(input, options = {}) {
   });
 }
 
-function runPreflight(fx, extraArgs, extraEnv = {}) {
+function runPreflight(
+  fx,
+  extraArgs,
+  extraEnv = {},
+  preflightPath = preflight,
+  canaryPath = join(dirname(preflightPath), "canary.mjs"),
+) {
   const intakePath = join(fx.root, "intake.json");
   const runDir = join(fx.root, "intake-artifacts");
   const receipt = execFileSync(process.execPath, [intake, "--run-dir", runDir], {
@@ -126,12 +150,14 @@ function runPreflight(fx, extraArgs, extraEnv = {}) {
   });
   writeFileSync(intakePath, receipt);
   return spawnSync(process.execPath, [
-    preflight,
+    preflightPath,
     "--repo",
     fx.repo,
     "--intake-receipt",
     intakePath,
     ...extraArgs,
+    "--canary-script",
+    canaryPath,
     "--herdr-bin",
     fx.herdr,
     "--gjc-bin",
@@ -208,6 +234,16 @@ test("the current wcopy-mac regression fixture encodes the observed failure mode
   assert.equal(fixtureData.prior_run.herdr_workspace, "w1P");
   assert.equal(fixtureData.prior_run.canary_attempts_observed, 3);
   assert.ok(fixtureData.required_invariants.includes("dirty-tree-compact-intake"));
+});
+
+test("the actual symlink canary session is preserved as an end-to-end regression fixture", () => {
+  const fixtureData = JSON.parse(readFileSync(symlinkRegressionFixture, "utf8"));
+  assert.equal(fixtureData.observed_session.intake_bytes, 0);
+  assert.equal(fixtureData.observed_session.intake_exit, 0);
+  assert.equal(fixtureData.observed_session.canary_exit, 0);
+  assert.equal(fixtureData.observed_session.canary_artifact, null);
+  assert.equal(fixtureData.observed_session.agent_target, "cli:agent:list");
+  assert.ok(fixtureData.required_invariants.includes("fallback-waits-for-lifecycle-or-artifact"));
 });
 
 test("dirty inventory is compact and ignored directories never enter the artifact", () => {
@@ -360,6 +396,134 @@ test("preflight admits exact model and configured preset without product command
   }
 });
 
+test("preflight rejects a zero-byte canary script instead of admitting plumbing", () => {
+  const fx = fixture();
+  try {
+    const noop = join(fx.root, "noop-canary.mjs");
+    executable(noop, "");
+    const result = runPreflight(
+      fx,
+      ["--model", "openai-codex/gpt-5.6-luna", "--thinking", "max"],
+      {},
+      preflight,
+      noop,
+    );
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /canary script self-test failed/i);
+    assert.match(result.stderr, /zero-byte|artifact missing/i);
+  } finally {
+    removeFixture(fx);
+  }
+});
+
+test("plain-node source, plugin, and installed symlink paths execute every control entrypoint", () => {
+  const fx = fixture();
+  const installations = [
+    ["source", sourceSkill],
+    ["plugin", pluginSkill],
+    ["local", existsSync(localInstalledSkill) ? localInstalledSkill : sourceSkill],
+  ];
+  try {
+    for (const [label, skillRoot] of installations) {
+      assert.equal(existsSync(skillRoot), true, `${label} skill root is missing`);
+      const aliasRoot = join(fx.root, `${label}-installed-skill`);
+      symlinkSync(skillRoot, aliasRoot, "dir");
+      const aliasScripts = join(aliasRoot, "scripts");
+      const runDir = join(fx.root, `${label}-entrypoint-run`);
+      const intakeRunDir = join(runDir, "intake");
+      mkdirSync(intakeRunDir, { recursive: true });
+
+      for (const entrypoint of ["preflight.mjs", "canary.mjs", "budget.mjs", "receipt.mjs"]) {
+        const noArgs = spawnSync(process.execPath, [join(aliasScripts, entrypoint)], { encoding: "utf8" });
+        assert.notEqual(noArgs.status, 0, `${label} ${entrypoint} silently exited successfully`);
+      }
+
+      const intakeResult = spawnSync(process.execPath, [join(aliasScripts, "intake.mjs"), "--run-dir", intakeRunDir], {
+        input: JSON.stringify(intakePayload(fx.repo, intakeRunDir)),
+        encoding: "utf8",
+      });
+      assert.equal(intakeResult.status, 0, `${label} intake: ${intakeResult.stderr}`);
+      assert.ok(Buffer.byteLength(intakeResult.stdout) > 0, `${label} intake was a no-op`);
+      const intakePath = join(runDir, "intake.json");
+      writeFileSync(intakePath, intakeResult.stdout);
+      assert.equal(JSON.parse(intakeResult.stdout).phase, "OBJECTIVE_ADMITTED");
+
+      const preflightResult = spawnSync(process.execPath, [
+        join(aliasScripts, "preflight.mjs"),
+        "--repo",
+        fx.repo,
+        "--intake-receipt",
+        intakePath,
+        "--model",
+        "openai-codex/gpt-5.6-luna",
+        "--thinking",
+        "max",
+        "--herdr-bin",
+        fx.herdr,
+        "--gjc-bin",
+        fx.gjc,
+        "--canary-script",
+        join(aliasScripts, "canary.mjs"),
+      ], {
+        encoding: "utf8",
+        env: { ...process.env, HERDR_ENV: "1" },
+      });
+      assert.equal(preflightResult.status, 0, `${label} preflight: ${preflightResult.stderr}`);
+      assert.ok(Buffer.byteLength(preflightResult.stdout) > 0, `${label} preflight was a no-op`);
+      assert.equal(JSON.parse(preflightResult.stdout).canary_self_test.status, "passed");
+
+      const canaryRunDir = join(runDir, "canary");
+      mkdirSync(canaryRunDir, { recursive: true });
+      const canaryArtifact = join(canaryRunDir, "canary-result.json");
+      const canaryResult = spawnSync(process.execPath, [
+        join(aliasScripts, "canary.mjs"),
+        "--cwd",
+        fx.repo,
+        "--artifact",
+        canaryArtifact,
+        "--run-dir",
+        canaryRunDir,
+        "--herdr-workspace",
+        `fixture-${label}`,
+        "--gjc-version",
+        "9.9.9",
+      ], {
+        cwd: fx.repo,
+        encoding: "utf8",
+      });
+      assert.equal(canaryResult.status, 0, `${label} canary: ${canaryResult.stderr}`);
+      assert.ok(Buffer.byteLength(canaryResult.stdout) > 0, `${label} canary was a no-op`);
+      assert.ok(statSync(canaryArtifact).size > 0, `${label} canary artifact is empty`);
+      assert.equal(JSON.parse(readFileSync(canaryArtifact, "utf8")).status, "passed");
+
+      const ledger = join(runDir, "test-ledger.json");
+      const budgetResult = spawnSync(process.execPath, [
+        join(aliasScripts, "budget.mjs"),
+        "test-claim",
+        "--ledger",
+        ledger,
+        "--phase",
+        "focused",
+        "--command",
+        `node ${label}-focused-check`,
+      ], { encoding: "utf8" });
+      assert.equal(budgetResult.status, 0, `${label} budget: ${budgetResult.stderr}`);
+      assert.ok(Buffer.byteLength(budgetResult.stdout) > 0, `${label} budget was a no-op`);
+
+      const report = join(runDir, "worker-result.md");
+      writeFileSync(report, "## Summary\nbounded\n\nFIX_DONE fixture FIXED=1 WITHDRAWN=0 OUTOFSCOPE=0 TYPECHECK=pass\n");
+      const receiptResult = spawnSync(process.execPath, [join(aliasScripts, "receipt.mjs"), report], {
+        encoding: "utf8",
+      });
+      assert.equal(receiptResult.status, 0, `${label} receipt: ${receiptResult.stderr}`);
+      assert.ok(Buffer.byteLength(receiptResult.stdout) > 0, `${label} receipt was a no-op`);
+      assert.equal(JSON.parse(receiptResult.stdout).status, "observed");
+    }
+  } finally {
+    removeFixture(fx);
+  }
+});
+
 test("preflight fails outside Herdr and for unresolved model input", () => {
   const fx = fixture();
   try {
@@ -395,6 +559,8 @@ test("canary allows only one deterministic launch/cwd/artifact probe", () => {
     agentLaunched: true,
   });
   assert.equal(first.status, "passed");
+  assert.ok(first.artifact_digest.bytes > 0);
+  assert.match(first.artifact_digest.sha256, /^[a-f0-9]{64}$/);
   assert.equal(JSON.parse(readFileSync(artifact, "utf8")).product_command, false);
   const skipped = runCanary({
     cwd: process.cwd(),
@@ -433,6 +599,64 @@ test("canary allows only one deterministic launch/cwd/artifact probe", () => {
   }), /retry is forbidden/);
   rmSync(runDir, { recursive: true, force: true });
   rmSync(failedDir, { recursive: true, force: true });
+});
+
+test("canary reuse requires a verified artifact digest and keeps one attempt", () => {
+  const runDir = mkdtempSync(join(tmpdir(), "gjc-canary-digest-"));
+  const artifact = join(runDir, "canary-result.json");
+  try {
+    const first = runCanary({
+      cwd: process.cwd(),
+      artifact,
+      runDir,
+      herdrWorkspace: "w-digest",
+      gjcVersion: "9.9.9",
+      agentLaunched: true,
+    });
+    assert.equal(first.status, "passed");
+    writeFileSync(artifact, "");
+    assert.throws(() => runCanary({
+      cwd: process.cwd(),
+      artifact,
+      runDir,
+      herdrWorkspace: "w-digest",
+      gjcVersion: "9.9.9",
+      agentLaunched: true,
+    }), /retry is forbidden.*digest/i);
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
+});
+
+test("canary diagnostics distinguish plumbing from worker failure without a retry", () => {
+  const root = mkdtempSync(join(tmpdir(), "gjc-canary-diagnostic-"));
+  try {
+    const plumbing = compactCanaryDiagnostic({
+      phase: "self-test",
+      commandExit: 0,
+      commandOutputBytes: 0,
+      artifactPath: join(root, "missing.json"),
+    });
+    assert.equal(plumbing.status, "failed");
+    assert.equal(plumbing.failure_class, "script_plumbing");
+    assert.equal(plumbing.attempt, BUDGETS.canaryMaxAttempts);
+    assert.equal(plumbing.command_exit, 0);
+    assert.equal(plumbing.artifact.bytes, 0);
+
+    const worker = compactCanaryDiagnostic({
+      phase: "worker",
+      commandExit: 1,
+      workerStatus: "blocked",
+      paneTransition: "working->blocked",
+      artifactPath: join(root, "missing.json"),
+    });
+    assert.equal(worker.status, "failed");
+    assert.equal(worker.failure_class, "worker_failure");
+    assert.equal(worker.worker_status, "blocked");
+    assert.equal(worker.pane_transition, "working->blocked");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("test ledger enforces hard phase budgets and repeated fingerprints", () => {
@@ -492,13 +716,74 @@ test("Herdr field reader and agent state reject guesses and preserve unknown", (
   const missing = spawnSync(process.execPath, [fieldReader, "result.pane.pane_id"], { input, encoding: "utf8" });
   assert.equal(missing.status, 2);
 
-  const observed = execFileSync(process.execPath, [stateReader], {
+  const observed = execFileSync(process.execPath, [stateReader, "--pane-id", "w1:p1"], {
     input: JSON.stringify({ result: { agent: { agent: "gjc", agent_status: "done", cwd: "/repo", pane_id: "w1:p1" } } }),
     encoding: "utf8",
   });
   assert.equal(JSON.parse(observed).status, "done");
   const unknown = execFileSync(process.execPath, [stateReader], { input: "{}", encoding: "utf8" });
   assert.equal(JSON.parse(unknown).status, "unknown");
+});
+
+test("agent selection ignores the outer command id and requires an exact leaf pane", () => {
+  const payload = {
+    id: "cli:agent:list",
+    result: {
+      agents: [
+        { agent: "gjc", agent_status: "working", pane_id: "w1:p3" },
+        { agent: "gjc", agent_status: "idle", pane_id: "w1:p8" },
+      ],
+    },
+  };
+  assert.equal(selectLeafAgent(payload, "w1:p8").pane_id, "w1:p8");
+  assert.equal(selectLeafAgent(payload, "cli:agent:list"), null);
+  assert.deepEqual(describeAgentSelection(payload, null), {
+    selected: false,
+    reason: "pane_id_required",
+  });
+  const state = JSON.parse(execFileSync(process.execPath, [stateReader, "--pane-id", "w1:p8"], {
+    input: JSON.stringify(payload),
+    encoding: "utf8",
+  }));
+  assert.equal(state.agent, "gjc");
+  assert.equal(state.pane_id, "w1:p8");
+  assert.notEqual(state.agent, payload.id);
+});
+
+test("manual GJC fallback uses one pane-id prompt, one send-text-enter, and bounded reconciliation", () => {
+  const plan = buildPromptPlan({
+    paneId: "w1:p8",
+    prompt: "write the artifact",
+    manuallyDetected: true,
+  });
+  assert.equal(plan.primary.target, "w1:p8");
+  assert.equal(plan.fallback.max_attempts, BUDGETS.agentFallbackMaxAttempts);
+  assert.deepEqual(plan.fallback.actions.map((action) => action.action), ["pane_send_text", "pane_send_keys"]);
+  assert.deepEqual(plan.fallback.actions[1].keys, ["enter"]);
+  assert.equal(plan.fallback.wait.timeout_ms, BUDGETS.agentFallbackWaitMs);
+
+  const initial = nextPromptStep({
+    paneId: "w1:p8",
+    prompt: "write the artifact",
+    manuallyDetected: true,
+  });
+  assert.equal(initial.action, "agent_prompt");
+  assert.equal(initial.target, "w1:p8");
+  const fallback = nextPromptStep({
+    paneId: "w1:p8",
+    prompt: "write the artifact",
+    manuallyDetected: true,
+    errorCode: "agent_not_ready",
+  });
+  assert.equal(fallback.fallback_attempts, 1);
+  assert.equal(nextPromptStep({
+    paneId: "w1:p8",
+    prompt: "write the artifact",
+    errorCode: "agent_not_found",
+  }).action, "stop");
+  assert.equal(reconcileFallback({ fallbackAttempts: 1, lifecycleTransition: true }).status, "observed");
+  assert.equal(reconcileFallback({ fallbackAttempts: 1, artifactReady: true }).status, "observed");
+  assert.equal(reconcileFallback({ fallbackAttempts: 1 }).status, "blocked");
 });
 
 test("exclusive verifier proves disjointness and rejects malformed paths", () => {

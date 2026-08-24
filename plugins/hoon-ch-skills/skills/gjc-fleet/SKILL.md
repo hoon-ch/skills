@@ -35,6 +35,7 @@ All values live in `scripts/budget.mjs`; prose must not introduce a second set o
 | Pane detection read | 40 lines |
 | Pane recent-unwrapped read | 120 lines |
 | Canary | one attempt per run; recent identical proof may be skipped |
+| Manual GJC pane fallback | one `send-text` + one `enter`; bounded wait |
 | Worker focused test | one claim |
 | Owner revalidation after a fix | one claim |
 | Global gate | one claim |
@@ -84,12 +85,16 @@ node /path/to/gjc-fleet/scripts/preflight.mjs \
   --repo "$TARGET_REPO" \
   --intake-receipt "$RUN_DIR/intake.json" \
   --model openai-codex/gpt-5.6-luna \
-  --thinking max > "$RUN_DIR/preflight.json" || exit 2
+  --thinking max \
+  --canary-script /path/to/gjc-fleet/scripts/canary.mjs > "$RUN_DIR/preflight.json" || exit 2
 ```
 
 `preflight.mjs` reads only the compact intake and installed command syntax. It creates no pane,
 tab, worktree, session, model worker, or product command. A preset probe is a preflight
-configuration check, not a product test; a failed probe stops admission.
+configuration check, not a product test. Before admission it also runs plain `node` against the
+exact installed `canary.mjs` path and requires non-empty command output plus a non-empty, valid
+canary artifact. A zero-byte/no-op script is a **script-plumbing failure**, even when its process
+exit is zero; it stops admission before any resource is created.
 
 ## Workflow
 
@@ -119,7 +124,16 @@ configuration check, not a product test; a failed probe stops admission.
 Require `HERDR_ENV=1`. Read `herdr --skill` and installed help; the binary is syntax authority.
 Pass the verified absolute cwd to every `tab create`, `pane split`, and `worktree create`, use
 `--no-focus`, parse every returned opaque ID, and record it in the external ledger immediately.
-Never infer a pane from a label, tab number, focus, or creation order.
+When parsing `herdr agent list`, ignore the outer response `id` (for example
+`cli:agent:list`). Select only a leaf object whose `pane_id` exactly equals the returned pane ID;
+`scripts/agent-state.mjs --pane-id PANE_ID` is the parser. Never recursively search serialized
+JSON, infer a worker name, or target a label, tab number, focus, or creation order.
+
+If the leaf has no usable name or GJC was detected manually, first issue the prompt to that exact
+pane ID. If the known response is `agent_not_ready`, use exactly one `pane send-text` followed by
+exactly one `pane send-keys ... enter`; do not resend the prompt or guess a name. Reconcile within
+the bounded fallback wait and accept only a lifecycle transition or the expected artifact. An
+`agent_not_found` response is a target-resolution failure, never a name-resolution invitation.
 
 ### 4. Prove exactly one canary
 
@@ -133,9 +147,16 @@ Run exactly node /path/to/gjc-fleet/scripts/canary.mjs --cwd TARGET_REPO --artif
 
 `scripts/canary.mjs` proves only launch, cwd, and external artifact write. It must not inspect
 the target tree and must not run `cargo`, `go`, `npm`, `pnpm`, `yarn`, `build`, `test`, `lint`, or
-any product command. A failed canary stops and reports. Do not edit the order and retry it. A
-recent receipt with the same Herdr workspace, GJC version, launcher, and cwd may produce a
-`skipped` proof instead of another launch.
+any product command. A failed canary stops and reports exactly one compact diagnostic containing
+the command exit, worker status, pane transition, artifact existence/size, and artifact digest.
+Missing or zero-byte output is not a worker pass. Do not edit the order and retry it. A recent
+receipt with the same Herdr workspace, GJC version, launcher, and cwd may produce a `skipped`
+proof only when the existing artifact digest is verified against the current artifact; a status
+line or timestamp alone is never reusable.
+
+Once launcher/detection are verified and the canary artifact write handshake passes, dispatch the
+actual worker immediately. Do not add a second hard block for a warning that did not invalidate
+the verified artifact.
 
 ### 5. Dispatch worker work
 
@@ -197,7 +218,11 @@ retired resources. Otherwise use `incomplete` or `blocked` and retain the releva
 - **Missing Herdr environment or changed help:** stop before resource creation.
 - **Intake or receipt cap exceeded:** emit the compact blocked receipt and point to the external
   artifact; never print the oversized object.
-- **Canary failure or second attempt:** stop the run and report the single observed failure.
+- **Canary script-plumbing failure:** stop before dispatch and report command exit/stdout bytes,
+  artifact bytes/digest, and the compact self-test diagnostic.
+- **Canary worker failure or missing artifact:** stop after the one attempt and report command
+  exit, worker status, pane transition, and artifact bytes/digest; do not retry.
+- **Second canary attempt:** treat it as a hard failure even if the first command exited zero.
 - **Worker report missing/oversized/malformed:** mark the unit unverified; do not read its full
   log in the parent context and do not retry the same order blindly.
 - **Repeated test fingerprint or exhausted phase:** stop that test path; send only a causal,

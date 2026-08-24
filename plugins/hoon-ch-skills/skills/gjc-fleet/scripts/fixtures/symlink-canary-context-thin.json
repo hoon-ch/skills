@@ -1,0 +1,31 @@
+{
+  "name": "wcopy-mac-symlink-canary-context-thin",
+  "observed_session": {
+    "path": "/Users/hoon-ch/.gjc/agent/sessions/v2-mk4dyhrrlw5hf4cxhoifzun6dusfmbumx44ijl6iawji6xo4sina/2026-08-24T06-37-37-430Z_01a0327d-2516-7279-87df-a809b8c85bc7.jsonl",
+    "intake_bytes": 0,
+    "intake_exit": 0,
+    "canary_exit": 0,
+    "canary_artifact": null,
+    "agent_error": "agent_not_found",
+    "agent_target": "cli:agent:list",
+    "manual_pane": "w1P:p8",
+    "fallback_error": "agent_not_ready"
+  },
+  "observed_receipt": {
+    "path": "/private/var/folders/bd/dq0gbrc917g7x6vd531rxcwc0000gn/T/gjc-fleet.giRW2p/final-receipt.json",
+    "status": "blocked",
+    "phase": "CANARY_FAILED",
+    "reason": "single canary order produced no result artifact"
+  },
+  "required_invariants": [
+    "plain-node-symlink-entrypoints-never-noop",
+    "zero-byte-output-is-a-failure",
+    "preflight-self-tests-the-installed-canary",
+    "agent-selection-requires-exact-pane-id",
+    "outer-command-id-is-not-an-agent-name",
+    "manual-gjc-fallback-is-one-send-text-enter",
+    "fallback-waits-for-lifecycle-or-artifact",
+    "canary-artifact-digest-is-required-for-reuse",
+    "canary-attempts-remain-one"
+  ]
+}

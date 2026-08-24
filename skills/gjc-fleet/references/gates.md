@@ -20,7 +20,8 @@ or a sentence in a pane never proves a gate.
 Use `live` for an actually executed worker check with exit/assertion evidence, `gated` for a
 check delegated to the explicit global gate owner, and `skip` only with a concrete limitation.
 `skip` is not pass. The canary has its own `passed`, `failed`, or `skipped` status and is never a
-product test.
+product test. `skipped` is valid only when the current non-empty artifact matches the prior
+verified byte count and SHA-256; a timestamp or status line alone cannot admit reuse.
 
 ## Ownership
 

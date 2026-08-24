@@ -73,7 +73,8 @@ The final artifact uses `gjc-fleet-receipt/v2` and stays compact:
   "objective": {"text": "bounded objective", "source": "conversation"},
   "target": {"repo_root": "/absolute/path", "resolved_cwd_verified": true},
   "budgets": {"receipt_bytes": 16384, "summary_bytes": 2048},
-  "canary": {"status": "passed|skipped|failed", "artifact": {"path": "...", "sha256": "..."}},
+  "canary": {"status": "passed|skipped|failed", "artifact": {"path": "...", "bytes": 120, "sha256": "..."},
+             "failure_class": "script_plumbing|worker_failure|null"},
   "units": [
     {"id": "f1", "lifecycle": "retired|running|blocked|unknown", "owned_count": 2,
      "result": {"path": "...", "bytes": 100, "sha256": "..."},

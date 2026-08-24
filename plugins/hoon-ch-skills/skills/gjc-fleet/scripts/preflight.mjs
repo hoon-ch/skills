@@ -17,17 +17,20 @@
  * Exit 0 = admitted. Exit 2 = fail closed.
  */
 
-import { readFileSync, realpathSync, statSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { BUDGETS, jsonBytes } from "./budget.mjs";
+import { fileURLToPath } from "node:url";
+import { BUDGETS, byteLength, jsonBytes } from "./budget.mjs";
+import { compactCanaryDiagnostic } from "./canary.mjs";
 import { STATES, TRANSITIONS, validateObjectiveReceipt } from "./intake.mjs";
 
 const PRESET_MARKER = "GJC_FLEET_PRESET_OK";
 const ALLOWED_THINKING = new Set(["minimal", "low", "medium", "high", "xhigh", "max"]);
 
 function usage() {
-  console.log(`Usage: preflight.mjs --repo ABSOLUTE_REPO --intake-receipt PATH (--model PROVIDER/MODEL [--thinking LEVEL] | --preset NAME) [--herdr-bin PATH] [--gjc-bin PATH]
+  console.log(`Usage: preflight.mjs --repo ABSOLUTE_REPO --intake-receipt PATH (--model PROVIDER/MODEL [--thinking LEVEL] | --preset NAME) [--herdr-bin PATH] [--gjc-bin PATH] [--canary-script PATH]
 
 Read-only checks:
   - an OBJECTIVE_ADMITTED intake receipt whose target matches --repo
@@ -35,6 +38,7 @@ Read-only checks:
   - HERDR_ENV=1 and a real Git repository
   - herdr --skill and the installed Herdr command/flag surface
   - gjc --version/--help and either an exact provider/model or a preset probe
+  - a plain-node canary self-test through the exact installed script path
 
 No panes, tabs, worktrees, sessions, or model workers are created.`);
 }
@@ -53,7 +57,7 @@ function parseArgs(argv) {
     }
     if (!arg.startsWith("--")) fail(`unexpected argument ${arg}`);
     const key = arg.slice(2);
-    if (!new Set(["repo", "intake-receipt", "model", "preset", "thinking", "herdr-bin", "gjc-bin"]).has(key)) {
+    if (!new Set(["repo", "intake-receipt", "model", "preset", "thinking", "herdr-bin", "gjc-bin", "canary-script"]).has(key)) {
       fail(`unsupported option --${key}; inspect the installed helper with --help`);
     }
     if (values.has(key)) fail(`duplicate option --${key}`);
@@ -64,12 +68,13 @@ function parseArgs(argv) {
   return values;
 }
 
-function run(bin, args, allowExitCodes = new Set()) {
+function run(bin, args, allowExitCodes = new Set(), { cwd = undefined } = {}) {
   let result;
   try {
     result = spawnSync(bin, args, {
       encoding: "utf8",
       env: process.env,
+      cwd,
       maxBuffer: BUDGETS.preflightOutputMaxBytes,
       timeout: 30_000,
     });
@@ -84,6 +89,68 @@ function run(bin, args, allowExitCodes = new Set()) {
     error: result.error,
     ok: status === 0 || allowExitCodes.has(status),
   };
+}
+
+function defaultCanaryScript() {
+  const entrypoint = process.argv[1]
+    ? resolve(process.argv[1])
+    : fileURLToPath(import.meta.url);
+  return resolve(dirname(entrypoint), "canary.mjs");
+}
+
+function boundedScriptPath(script) {
+  return script.length <= BUDGETS.receiptFieldMaxBytes
+    ? script
+    : `${script.slice(0, BUDGETS.receiptFieldMaxBytes - 1)}…`;
+}
+
+function selfTestCanary(script, repo, gjcVersion) {
+  const runDir = mkdtempSync(join(tmpdir(), "gjc-fleet-preflight-canary-"));
+  const artifact = join(runDir, "canary-result.json");
+  const result = run(process.execPath, [
+    script,
+    "--cwd",
+    repo,
+    "--artifact",
+    artifact,
+    "--run-dir",
+    runDir,
+    "--herdr-workspace",
+    "preflight-self-test",
+    "--gjc-version",
+    gjcVersion,
+    "--launcher",
+    "preflight-self-test",
+  ], new Set(), { cwd: repo });
+  const diagnostic = compactCanaryDiagnostic({
+    phase: "self-test",
+    commandExit: result.status,
+    commandOutputBytes: byteLength(result.stdout),
+    artifactPath: artifact,
+  });
+  try {
+    if (result.error || diagnostic.status !== "passed") {
+      const compact = JSON.stringify({
+        status: result.status,
+        stdout_bytes: byteLength(result.stdout),
+        stderr_bytes: byteLength(result.stderr),
+        diagnostic,
+      });
+      fail(`canary script self-test failed: ${compact}`);
+    }
+    return {
+      status: "passed",
+      script: boundedScriptPath(script),
+      command_exit: result.status,
+      stdout_bytes: byteLength(result.stdout),
+      artifact: {
+        bytes: diagnostic.artifact.bytes,
+        sha256: diagnostic.artifact.sha256,
+      },
+    };
+  } finally {
+    rmSync(runDir, { recursive: true, force: true });
+  }
 }
 
 function requireOutput(label, result, required, allowExitCodes = new Set()) {
@@ -271,6 +338,8 @@ function main() {
   const gjc = values.get("gjc-bin") ?? "gjc";
   const herdrResult = checkHerdr(herdr);
   const gjcResult = checkGjc(gjc, values.get("model"), values.get("preset"), values.get("thinking"));
+  const canaryScript = resolve(values.get("canary-script") ?? defaultCanaryScript());
+  const canarySelfTest = selfTestCanary(canaryScript, repo, gjcResult.version);
   const result = {
     ok: true,
     phase: "PREFLIGHTED",
@@ -283,6 +352,7 @@ function main() {
     repo,
     herdr: herdrResult,
     gjc: gjcResult,
+    canary_self_test: canarySelfTest,
     budgets: BUDGETS,
     note: "Preflight is control-plane-only. It reads bounded metadata and installed CLI syntax; product discovery, edits, and tests belong to workers.",
   };

@@ -14,7 +14,8 @@ node /path/to/gjc-fleet/scripts/preflight.mjs \
   --repo "$TARGET_REPO" \
   --intake-receipt "$RUN_DIR/intake.json" \
   --model openai-codex/gpt-5.6-luna \
-  --thinking max > "$RUN_DIR/preflight.json"
+  --thinking max \
+  --canary-script /path/to/gjc-fleet/scripts/canary.mjs > "$RUN_DIR/preflight.json"
 ```
 
 The intake must be `gjc-fleet-intake/v3`, `OBJECTIVE_ADMITTED`, target-verified, and compact.
@@ -26,6 +27,10 @@ The installed binary is the authority. Require the current `tab`, `pane`, `workt
 wait, and bounded pane-read surfaces, including `--cwd`, `--no-focus`, JSON ID responses,
 `detection`, `recent-unwrapped`, and finite timeouts. A missing or changed surface stops before
 resource creation.
+
+Admission also runs plain `node` against the exact installed canary path. The self-test must
+produce non-empty stdout and a non-empty valid artifact with a verified digest. A zero-byte
+result with exit 0 is a script-plumbing failure, not an admitted canary or a worker failure.
 
 ## Model forms
 

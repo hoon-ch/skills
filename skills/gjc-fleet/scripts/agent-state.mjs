@@ -7,14 +7,26 @@
  * need jq or fragile regular expressions.
  *
  * Usage:
- *   herdr agent get <pane> | node agent-state.mjs
- *   herdr pane get <pane> | node agent-state.mjs
+ *   herdr agent get <pane> | node agent-state.mjs --pane-id <pane>
+ *   herdr pane get <pane> | node agent-state.mjs --pane-id <pane>
+ *   herdr agent list | node agent-state.mjs --pane-id <pane>
  *
  * Exit 0 = valid JSON was normalized (including an explicit unknown state).
  * Exit 2 = malformed input.
  */
 
 import { readFileSync } from "node:fs";
+import { describeAgentSelection, selectLeafAgent } from "./agent-target.mjs";
+
+const args = process.argv.slice(2);
+let paneId = null;
+if (args.length > 0) {
+  if (args.length !== 2 || args[0] !== "--pane-id" || typeof args[1] !== "string" || args[1].trim().length === 0) {
+    console.error("usage: agent-state.mjs [--pane-id PANE_ID]");
+    process.exit(2);
+  }
+  paneId = args[1].trim();
+}
 
 let payload;
 try {
@@ -25,7 +37,8 @@ try {
 }
 
 const result = payload?.result;
-const candidate = result?.agent ?? result?.pane ?? (Array.isArray(result?.agents) ? result.agents[0] : null);
+const selection = describeAgentSelection(payload, paneId);
+const candidate = selectLeafAgent(payload, paneId);
 const error = result?.error ?? payload?.error;
 
 if (candidate === null || typeof candidate !== "object") {
@@ -33,7 +46,9 @@ if (candidate === null || typeof candidate !== "object") {
     present: false,
     agent: null,
     status: "unknown",
-    error_code: typeof error?.code === "string" ? error.code : null,
+    error_code: typeof error?.code === "string" ? error.code : selection.reason,
+    pane_id: paneId,
+    selection_reason: selection.reason,
   }));
   process.exit(0);
 }
@@ -53,4 +68,5 @@ console.log(JSON.stringify({
   tab_id: scalar("tab_id"),
   workspace_id: scalar("workspace_id"),
   error_code: typeof error?.code === "string" ? error.code : null,
+  selection_reason: null,
 }));

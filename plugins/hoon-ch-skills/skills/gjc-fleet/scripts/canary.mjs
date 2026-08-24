@@ -15,6 +15,7 @@ import {
   boundedUtf8,
   jsonBytes,
 } from "./budget.mjs";
+import { digestFile } from "./receipt.mjs";
 
 export const CANARY_SCHEMA = "gjc-fleet-canary/v1";
 const FORBIDDEN_CANARY_COMMAND = /(?:^|\s)(?:cargo|go|npm|pnpm|yarn|bun|make|just|pytest|vitest|jest|gradle|mvn|xcodebuild|build|compile|install|test|check|lint)(?=\s|$)/i;
@@ -62,6 +63,63 @@ export function validateCanaryCommand(command) {
   return true;
 }
 
+function validDigest(value) {
+  return value &&
+    Number.isInteger(value.bytes) &&
+    value.bytes > 0 &&
+    typeof value.sha256 === "string" &&
+    /^[a-f0-9]{64}$/i.test(value.sha256);
+}
+
+export function inspectCanaryArtifact(path) {
+  const requested = typeof path === "string" && path.trim().length > 0 ? resolve(path) : null;
+  if (!requested || !existsSync(requested)) {
+    return {
+      path: requested,
+      exists: false,
+      bytes: 0,
+      sha256: null,
+      valid: false,
+      reason: "artifact missing",
+    };
+  }
+
+  let stat;
+  let value;
+  try {
+    stat = statSync(requested);
+    if (!stat.isFile()) throw new Error("artifact is not a regular file");
+    if (stat.size <= 0) throw new Error("artifact is zero bytes");
+    if (stat.size > BUDGETS.receiptMaxBytes) throw new Error("artifact exceeds the compact receipt budget");
+    value = JSON.parse(readFileSync(requested, "utf8"));
+  } catch (error) {
+    return {
+      path: requested,
+      exists: true,
+      bytes: stat?.size ?? 0,
+      sha256: null,
+      valid: false,
+      reason: boundedUtf8(error instanceof Error ? error.message : "artifact is unreadable", BUDGETS.receiptFieldMaxBytes),
+    };
+  }
+
+  const digest = digestFile(requested);
+  const valid = value?.schema === CANARY_SCHEMA &&
+    value?.status === "passed" &&
+    value?.cwd_verified === true &&
+    value?.artifact_written === true &&
+    value?.product_command === false &&
+    value?.product_tree_read === false;
+  return {
+    path: requested,
+    exists: true,
+    bytes: digest.bytes,
+    sha256: digest.sha256,
+    valid,
+    reason: valid ? null : "artifact is not a passed canary receipt",
+  };
+}
+
 function proofMatches(left, right) {
   return left?.cwd === right.cwd &&
     left?.herdr_workspace === right.herdr_workspace &&
@@ -69,10 +127,16 @@ function proofMatches(left, right) {
     left?.launcher === right.launcher;
 }
 
-export function canReuseCanary(previous, proof, now = Date.now()) {
+export function canReuseCanary(previous, proof, now = Date.now(), artifactPath = null) {
   if (!previous || previous.status !== "passed" || !proofMatches(previous, proof)) return false;
   const timestamp = Date.parse(previous.proven_at ?? "");
-  return Number.isFinite(timestamp) && now - timestamp >= 0 && now - timestamp <= BUDGETS.canaryReuseMs;
+  if (!Number.isFinite(timestamp) || now - timestamp < 0 || now - timestamp > BUDGETS.canaryReuseMs) return false;
+  if (!validDigest(previous.artifact_digest)) return false;
+  const artifact = inspectCanaryArtifact(artifactPath);
+  return artifact.valid &&
+    resolve(previous.artifact ?? "") === artifact.path &&
+    previous.artifact_digest.bytes === artifact.bytes &&
+    previous.artifact_digest.sha256.toLowerCase() === artifact.sha256;
 }
 
 function loadLedger(path) {
@@ -111,16 +175,21 @@ export function runCanary({
   };
   const existing = loadLedger(ledgerPath);
   if (existing) {
-    if (existing.status === "passed" && canReuseCanary(existing, proof) && existsSync(outputPath)) {
+    if (existing.status === "passed" && canReuseCanary(existing, proof, now.getTime(), outputPath)) {
+      const artifactEvidence = inspectCanaryArtifact(outputPath);
       return {
         schema: CANARY_SCHEMA,
         status: "skipped",
         reason: "recent identical Herdr/GJC/version/cwd proof",
         artifact: outputPath,
+        artifact_digest: {
+          bytes: artifactEvidence.bytes,
+          sha256: artifactEvidence.sha256,
+        },
         ledger: ledgerPath,
       };
     }
-    throw new Error("canary already attempted for this run; retry is forbidden");
+    throw new Error("canary already attempted for this run; retry is forbidden and its artifact digest was not verified");
   }
 
   const started = {
@@ -153,8 +222,18 @@ export function runCanary({
     mkdirSync(externalRunDir, { recursive: true });
     mkdirSync(dirname(outputPath), { recursive: true });
     writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 });
-    saveLedger(ledgerPath, result);
-    return { ...result, artifact: outputPath, ledger: ledgerPath };
+    const artifactEvidence = inspectCanaryArtifact(outputPath);
+    if (!artifactEvidence.valid) throw new Error(`canary artifact verification failed: ${artifactEvidence.reason}`);
+    const completed = {
+      ...result,
+      artifact: outputPath,
+      artifact_digest: {
+        bytes: artifactEvidence.bytes,
+        sha256: artifactEvidence.sha256,
+      },
+    };
+    saveLedger(ledgerPath, completed);
+    return { ...completed, ledger: ledgerPath };
   } catch (error) {
     saveLedger(ledgerPath, {
       ...started,
@@ -163,6 +242,47 @@ export function runCanary({
     });
     throw error;
   }
+}
+
+export function compactCanaryDiagnostic({
+  phase = "worker",
+  commandExit = null,
+  commandOutputBytes = null,
+  workerStatus = null,
+  paneTransition = null,
+  artifactPath = null,
+} = {}) {
+  const artifact = inspectCanaryArtifact(artifactPath);
+  const exit = Number.isInteger(commandExit) ? commandExit : null;
+  const outputMissing = phase === "self-test" && commandOutputBytes === 0;
+  const workerEvidence = phase !== "self-test" &&
+    (exit !== null && exit !== 0 || workerStatus !== null || paneTransition !== null);
+  const passed = exit === 0 && artifact.valid && !outputMissing;
+  const failureClass = passed ? null : workerEvidence ? "worker_failure" : "script_plumbing";
+  const reason = passed
+    ? null
+    : outputMissing
+      ? "canary script produced zero-byte stdout"
+    : artifact.valid
+      ? `canary command exited ${String(exit)}`
+      : `${phase === "self-test" ? "canary script plumbing" : "canary artifact"}: ${artifact.reason}`;
+  return {
+    schema: CANARY_SCHEMA,
+    status: passed ? "passed" : "failed",
+    failure_class: failureClass,
+    attempt: BUDGETS.canaryMaxAttempts,
+    command_exit: exit,
+    command_output_bytes: Number.isInteger(commandOutputBytes) ? commandOutputBytes : null,
+    worker_status: typeof workerStatus === "string" ? boundedUtf8(workerStatus, 64) : null,
+    pane_transition: typeof paneTransition === "string" ? boundedUtf8(paneTransition, 128) : null,
+    artifact: {
+      path: artifact.path,
+      exists: artifact.exists,
+      bytes: artifact.bytes,
+      sha256: artifact.sha256,
+    },
+    reason: reason === null ? null : boundedUtf8(reason, BUDGETS.receiptFieldMaxBytes),
+  };
 }
 
 function parseArgs(argv) {
@@ -195,7 +315,16 @@ function main() {
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+function isDirectExecution() {
+  if (!process.argv[1]) return false;
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1]);
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectExecution()) {
   try {
     main();
   } catch (error) {

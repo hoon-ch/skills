@@ -34,6 +34,9 @@ full hashes, patches, or report bodies into the ledger.
   budget. Do not consume a full pane.
 - Parse worker reports with `scripts/receipt.mjs`; retain only summary, top findings, counts,
   statuses, and external digest.
+- For a manually detected or unnamed GJC, a known `agent_not_ready` response permits exactly one
+  pane `send-text` plus `enter`; reconcile only a lifecycle transition or expected artifact within
+  the bounded wait. Never retry `agent_not_found` by guessing a name.
 - A worker test requires a successful `scripts/budget.mjs` claim. Repeated fingerprints and phase
   exhaustion are hard failures.
 - The global gate is delegated to one worker claim. The orchestrator decides from its compact
