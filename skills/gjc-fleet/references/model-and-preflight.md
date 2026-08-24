@@ -1,103 +1,55 @@
-# Preflight and model resolution
+# Bounded preflight and model resolution
 
-Fleet control is preflighted only after conversational objective admission and the read-only
-target inventory. A copied workflow, a remembered version, or a model nickname is not evidence.
-The bundled `scripts/preflight.mjs` performs the read-only checks and exits 2 on any mismatch.
-It creates no Herdr resource.
+Preflight is a control-plane admission check. It may inspect `herdr --skill`, installed help,
+versions, and an exact model row. It may not inspect product files, run product commands, create a
+pane, or launch a worker. `scripts/preflight.mjs` rejects an intake file over the 16 KiB receipt
+cap before binary checks.
 
-## Hard admission boundary
-
-Run this only after `OBJECTIVE_ADMITTED`, and before `herdr tab create`, `herdr pane split`,
-`herdr worktree create`, or any agent command:
+## Admission boundary
 
 ```bash
-test "${HERDR_ENV:-}" = 1 || {
-  printf '%s\n' 'GJC fleet requires HERDR_ENV=1 inside a managed Herdr pane.' >&2
-  exit 2
-}
-
+test "${HERDR_ENV:-}" = 1 || exit 2
 herdr --skill > "$RUN_DIR/herdr-skill.md"
 node /path/to/gjc-fleet/scripts/preflight.mjs \
   --repo "$TARGET_REPO" \
   --intake-receipt "$RUN_DIR/intake.json" \
   --model openai-codex/gpt-5.6-luna \
-  --thinking max
+  --thinking max > "$RUN_DIR/preflight.json"
 ```
 
-`TARGET_REPO` must be the verified absolute repository root derived from the stated target
-reference. Resolve it with
-`git -C "$TARGET_REPO" rev-parse --show-toplevel`, normalize both paths with `realpath`, and
-stop if they differ. A caller cwd may choose the target only when the user explicitly said
-“current workspace”, “here”, or an equivalent deictic reference and the cwd verification is
-recorded. Do not let a focused pane or a branch label choose the target.
+The intake must be `gjc-fleet-intake/v3`, `OBJECTIVE_ADMITTED`, target-verified, and compact.
+It contains metadata counts/samples and external artifact digests, not source contents, full Git
+status, hashes, or environment values. The preflight output is also bounded and includes the
+central budget table.
 
-The internal receipt from `scripts/intake.mjs` must be `OBJECTIVE_ADMITTED`, name the same
-verified target, include a completed read-only inventory, and be ready. A `ROLE_ADMITTED`
-receipt cannot reach preflight. Acceptance criteria and the mutation boundary must be marked
-orchestrator-derived; they are not user-authored JSON.
+The installed binary is the authority. Require the current `tab`, `pane`, `worktree`, `agent`,
+wait, and bounded pane-read surfaces, including `--cwd`, `--no-focus`, JSON ID responses,
+`detection`, `recent-unwrapped`, and finite timeouts. A missing or changed surface stops before
+resource creation.
 
-`preflight.mjs` verifies, from the installed output:
+## Model forms
 
-- `HERDR_ENV=1`, a readable Git root, and `herdr --skill`.
-- the target-resolution proof and read-only inventory recorded during intake;
-- Herdr's current `tab`, `pane`, `worktree`, `agent`, and read-source syntax, including
-  `--cwd`, `--no-focus`, JSON-capable control responses, bounded waits, and pane fallbacks.
-- GJC's current `--model`, `--mpreset`, `--thinking`, `--list-models`, `--no-session`, and
-  `--no-tools` flags.
-- An explicit provider/model row, including the requested thinking level; or a real ephemeral
-  preset probe that does not save a session.
-
-A missing executable, changed help surface, unsupported flag, failed model lookup, failed
-preset probe, changed `herdr --skill` contract, or missing mutation-gate evidence is a stop.
-Do not create a partial fleet and hope a later command explains the mismatch. Read-only analysis
-may continue without Herdr preflight when it does not create workers or mutate product files.
-
-## Model names are not preset names
-
-There are two separate GJC inputs:
-
-- `--model PROVIDER/MODEL` selects one installed provider model. Resolve fuzzy or human names
-  with the installed `gjc --list-models` output, then pass the exact provider/model pair.
-- `--mpreset NAME` selects a configured profile from the user's GJC configuration. A model
-  nickname is not evidence that a profile with that name exists.
-
-For example, `LunaMaxxing` is not accepted as a preset merely because it sounds like a model
-set. Resolve it instead:
+An explicit model must be an exact `PROVIDER/MODEL` resolved from the installed list:
 
 ```bash
-gjc --list-models LunaMaxxing       # no match is a useful negative result
-gjc --list-models gpt-5.6-luna       # inspect provider rows and thinking values
+gjc --list-models gpt-5.6-luna
 gjc --model openai-codex/gpt-5.6-luna --thinking max
 ```
 
-The final launch command uses the exact row selected from the installed output. Do not invent
-`--mpreset LunaMaxxing`, silently fall back to `default`, or replace a failed model with a
-nearby model. A provider/model row that does not advertise `max` cannot be launched with
-`--thinking max`.
-
-For a real configured preset, prove it before fan-out with a non-session probe:
+A nickname is not a provider/model row and is never silently replaced. A configured preset is a
+separate input:
 
 ```bash
 gjc -p --mpreset "$PRESET" --no-session --no-tools --mode text \
   'reply with exactly: GJC_FLEET_PRESET_OK'
 ```
 
-Require exit 0 and the marker in the captured output. This may make one model request and may
-fail for authentication/quota reasons; either result stops admission. Never use a guessed
-preset as a fallback.
+This is a preflight configuration probe, not a repository canary or product test. It may make
+one model request; authentication, quota, or marker failure stops admission. The launch form in
+the receipt must match the observed form exactly.
 
 ## Credential boundary
 
-Authentication is inherited from the already-approved GJC environment or selected through a
-non-secret GJC credential selector. Never place a token, cookie, private key, or secret value
-in:
-
-- a worker prompt, brief, order, result, receipt, or artifact;
-- a `herdr pane run`, `pane send-text`, `agent prompt`, or model argument;
-- a `tab create --env` argument, shell history, terminal output, or log.
-
-If a repository requires a secret file, use a user-created file outside the repository with
-0600 permissions and pass only its path to a launcher that reads it without printing it. Prefer
-the repository's secret manager or GJC's stored credential selector. Check presence without
-echoing the value (`test -n "$NAME"`), and redact command output before putting it in a
-receipt. The fleet must not manufacture or copy secrets into a shared worktree.
+Credentials stay in the inherited approved GJC environment or a credential selector. Never put
+secrets in a brief, order, prompt, argv, `--env`, report, receipt, pane, or log. The receipt may
+record presence/status but never values or the full environment.

@@ -1,358 +1,227 @@
 ---
 name: gjc-fleet
-description: Orchestrate genuinely independent GJC worker sessions through Herdr with conversational intake, verified workspace targeting, read-only analysis, collision-proof ownership, evidence-based tracking, and ownership-safe cleanup. Requires HERDR_ENV=1 for Herdr control.
+description: Run a context-thin GJC control plane through Herdr. Delegate repository discovery, review, implementation, and tests to the minimum number of workers while keeping intake, pane reads, reports, and receipts bounded.
 ---
 
-# GJC Fleet Orchestration
+# GJC Fleet: context-thin control plane
 
-The invoking session is the fleet orchestrator. It understands the user's ordinary-language
-request, inventories the target safely, proposes the acceptance bar and file boundary, partitions
-independent work, directs GJC sessions, polls durable evidence, owns global gates, retires only
-proven units, and writes the final receipt. Workers make product edits; the orchestrator writes
-only briefs, orders, results/receipts, and its own tooling.
+The invoking session is a **control plane**, not a coding worker. It verifies the target Git
+root and installed Herdr/GJC surface, creates narrowly scoped worker resources, and decides from
+bounded machine receipts. It does not read product file contents, edit product files, run product
+builds/tests, consume whole panes, or paste internal JSON into the conversation.
 
-A fleet is not a way to run several agents because it is interesting. Use it only when units are
-independent and the file partition can be proven. Keep a shared contract serialized, and use one
-or two sessions directly when fleet overhead exceeds the work.
+Workers own target discovery, code review, implementation, and test commands. A worker writes
+verbose evidence to an external `RUN_DIR`; the orchestrator reads only a compact parser result
+and a short summary. A single task uses one worker or a direct session; a fleet is reserved for
+proven independent units with disjoint ownership.
 
-The default is no product commit, push, stash, reset, restore, or destructive cleanup. The user
-chooses how verified uncommitted work is landed. Never claim completion from a worker's sentence,
-Herdr's `done` status, or a stale terminal snapshot.
+The previous wcopy-mac run demonstrated why this boundary is mandatory: its intake was
+12,634,736 bytes because 21,521 inventory paths and 21,353 dirty paths were embedded; the same
+run submitted a cargo canary retry after a failed canary. Herdr workspace `w1P` then held three
+active panes with scroll depths of 651, 493, and 382 rows. Those are orchestration failures, not
+product evidence. This skill prevents them with executable helpers in `scripts/budget.mjs`,
+`scripts/canary.mjs`, and `scripts/receipt.mjs`.
 
-## Activation and conversational intake
+## Hard budgets
 
-`/skill:gjc-fleet` is role admission, not an instruction to inspect a repository.
+All values live in `scripts/budget.mjs`; prose must not introduce a second set of numbers.
 
-- With no objective at all, remain quietly at `ROLE_ADMITTED`. Do not inspect the current
-  repository, worktree, Git history, dirty files, focused pane, Herdr inventory, or model
-  configuration. Do not create a run directory, execute a command, mutate product files, dispatch
-  a worker, or create a tab, pane, worktree, or session. A short natural-language invitation to
-  state the goal is enough; do not expose a receipt or schema.
-- When the user gives an objective in ordinary language, admit it. The orchestrator, not the
-  user, normalizes the conversation into the internal intake receipt. Never ask the user to write
-  JSON, acceptance criteria, path globs, or a mutation schema.
-- Treat `현재 워크스페이스`, `현재 작업공간`, `여기`, `이 repo`, `current workspace`, `here`, and
-  `this repo` as explicit target references when the session cwd can be verified with Git and
-  `realpath`. A cwd is context for a stated target reference, never an objective by itself.
-- After objective admission, run a read-only target inventory. Derive acceptance criteria from
-  the user's outcome and the inventory, and derive a conservative proposed mutation boundary
-  from inventoried relevant surfaces. Reserve every dirty path as user work; never auto-assign it.
-- Read-only analysis is admitted as soon as an objective and a verifiable target exist. It does
-  not need a separate mutation approval and must not be blocked by unrelated dirty paths.
-- Keep the mutation gate pending until product mutation or a worker order that may mutate is
-  actually about to start. At that point, fail closed on unresolved material ambiguity, incomplete
-  inventory, an empty/unsafe boundary, or dirty-path overlap. Dirty paths that do not overlap
-  remain reserved and do not block unrelated analysis.
-- Ask one natural-language question at a time only when the answer changes the result materially.
-  Let the repository, Git, and installed CLI answer factual questions first. For an unresolved
-  target or scope, ask about that fact—not about an internal field name.
-- When the user says “분석해” or “analyze”, inventory first, then either present a concise
-  understanding and plan or begin orchestration when the intent is already clear. Do not wait
-  for a mutation approval to perform the analysis.
+| Surface | Hard limit |
+| --- | ---: |
+| Intake input | 64 KiB; overflow becomes a blocked compact receipt |
+| Intake/final machine receipt | 16 KiB |
+| Worker summary returned to control plane | 2 KiB |
+| Worker findings returned | top 8 plus external report digest |
+| Pane detection read | 40 lines |
+| Pane recent-unwrapped read | 120 lines |
+| Canary | one attempt per run; recent identical proof may be skipped |
+| Worker focused test | one claim |
+| Owner revalidation after a fix | one claim |
+| Global gate | one claim |
+| Exact test command fingerprint | never repeat within a run |
 
-The bundled `scripts/intake.mjs` is an internal transport and safety helper. Its JSON receipt is
-written to the external run directory and consumed by the orchestrator; it is never pasted into
-the normal conversation.
+Intake records counts, a bounded path sample, and an external NUL-safe artifact digest. It never
+embeds file contents, binary patches, a per-file hash list, the full environment, or full Git
+status. The inventory filters `.git`, `.gjc`, `target`, `.build`, `build`, `node_modules`,
+`.venv`, `dist`, `DerivedData`, and the other names in the helper. If serialization exceeds a
+cap, it fails closed; it does not trim until a misleading partial receipt looks valid.
 
-The lifecycle remains:
+## Activation and conversation
 
-```text
-DORMANT -> ROLE_ADMITTED -> OBJECTIVE_ADMITTED -> PREFLIGHTED -> DISPATCHING
-         -> TRACKING -> VERIFYING -> RECEIPT
-```
+`/skill:gjc-fleet` with no objective only admits the role. It does not inspect the repository,
+Git, Herdr, panes, models, or the environment, and it creates no run directory or resource.
+Reply naturally:
 
-`OBJECTIVE_ADMITTED` authorizes read-only inventory and analysis only. `PREFLIGHTED` proves the
-installed control surfaces. A mutation gate is evaluated immediately before any product-mutating
-order or worker dispatch; passing preflight alone never authorizes mutation.
+> Fleet 역할이 준비되었습니다. 원하는 결과를 자연어로 말해 주세요.
+
+After the user states an objective, accept ordinary language and an explicit target such as
+“현재 워크스페이스”, “here”, or an absolute repository path. Do not ask for JSON, path globs,
+acceptance criteria, or a report schema. The control plane may run only target-root metadata
+checks (`git rev-parse`, bounded Git path/status artifacts); it does not open product files.
+
+For “분석해” or “analyze”, dispatch one read-only discovery/review worker and return its
+bounded capability matrix in natural language. Do not start a fleet for a single analysis.
+Unrelated dirty work remains reserved; an overlapping mutation is blocked at the mutation gate.
 
 ## Quick Start
 
-After a natural-language objective has been stated, save the internal intake result outside the
-product tree and inspect it before creating any Herdr resource. The helper accepts the
-orchestrator's internal conversation context; the user does not need to see or produce it:
+Run inside a managed Herdr session only:
 
 ```bash
 RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gjc-fleet.XXXXXX")"
-node /path/to/gjc-fleet/scripts/intake.mjs < "$INTERNAL_REQUEST" > "$RUN_DIR/intake.json" || exit 2
-TARGET_REPO="$(node -e 'const r=require(process.argv[1]); if(r.phase!=="OBJECTIVE_ADMITTED") process.exit(2); process.stdout.write(r.target_repo)' "$RUN_DIR/intake.json")" || exit 2
+node /path/to/gjc-fleet/scripts/intake.mjs --run-dir "$RUN_DIR" \
+  < "$INTERNAL_REQUEST" > "$RUN_DIR/intake.json" || exit 2
 
-# Hard boundary: no Herdr control from an ordinary terminal.
+TARGET_REPO="$(node -e '
+  const r=require(process.argv[1]);
+  if (r.phase !== "OBJECTIVE_ADMITTED") process.exit(2);
+  process.stdout.write(r.target_repo);
+' "$RUN_DIR/intake.json")" || exit 2
+
 test "${HERDR_ENV:-}" = 1 || exit 2
-
-# Load the installed guidance; the installed binary is syntax authority.
 herdr --skill > "$RUN_DIR/herdr-skill.md"
-
 node /path/to/gjc-fleet/scripts/preflight.mjs \
   --repo "$TARGET_REPO" \
   --intake-receipt "$RUN_DIR/intake.json" \
   --model openai-codex/gpt-5.6-luna \
-  --thinking max
+  --thinking max > "$RUN_DIR/preflight.json" || exit 2
 ```
 
-The preflight checks the installed Herdr/GJC help and model row, not a remembered version. For a
-configured profile, use `--preset NAME`; it must pass the ephemeral `gjc -p --mpreset ...
---no-session --no-tools` probe before fan-out. For model nickname resolution, see
-[references/model-and-preflight.md](references/model-and-preflight.md).
-
-Create a canary tab with an explicit cwd and no focus stealing. Parse both IDs from JSON and
-verify the returned pane before launching GJC:
-
-```bash
-tab_json="$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" \
-  --cwd "$TARGET_REPO" --label "fleet-canary" --no-focus)" || exit 2
-tab_id="$(printf '%s' "$tab_json" | node /path/to/gjc-fleet/scripts/read-herdr-field.mjs result.tab.tab_id)" || exit 2
-pane_id="$(printf '%s' "$tab_json" | node /path/to/gjc-fleet/scripts/read-herdr-field.mjs result.root_pane.pane_id)" || exit 2
-herdr pane get "$pane_id"
-herdr pane run "$pane_id" "gjc --model openai-codex/gpt-5.6-luna --thinking max"
-```
-
-Wait for `agent=gjc` detection before submitting the canary order. If `gjc` is not in the
-installed `herdr agent` kinds, do not use `agent start --kind gjc`; `pane run` is the launcher.
-Use the pane submission fallback when manually detected GJC rejects `agent prompt`. Full control
-syntax is in [references/pane-control.md](references/pane-control.md).
+`preflight.mjs` reads only the compact intake and installed command syntax. It creates no pane,
+tab, worktree, session, model worker, or product command. A preset probe is a preflight
+configuration check, not a product test; a failed probe stops admission.
 
 ## Workflow
 
-### 1. Admit the objective and define a provisional contract
+### 1. Admit and bound metadata
 
-- Start at `ROLE_ADMITTED` only for an exact activation with no objective. Stop there without
-  reading repository or runtime state.
-- For a natural-language objective, extract the user's requested outcome and any explicit target
-  reference from the conversation. Do not require a complete scope, acceptance list, or path
-  boundary before admission.
-- Verify an absolute target with Git and `realpath`. Resolve a deictic workspace reference from
-  the session cwd only after the objective exists. If it cannot be verified, ask one target
-  question and do not dispatch.
-- Run the read-only inventory before proposing the contract. Record tracked/untracked relevant
-  paths, dirty paths, top-level surfaces, and the exact read-only evidence in the external ledger.
-- Derive acceptance criteria and the proposed boundary internally. The proposed boundary is not
-  mutation authorization; it is evidence for the later gate.
+- Keep activation-only admission inert.
+- Resolve an explicitly stated target with Git and `realpath`.
+- Write inventory paths/status to external NUL-safe artifacts and return only counts, samples,
+  and SHA-256 digests. No full path or hash arrays enter `intake.json`.
+- Derive acceptance criteria and a proposed boundary from metadata. They are not mutation
+  approval. Keep dirty paths reserved and assigned count zero.
+- Validate the serialized receipt before any Herdr resource is created. A receipt over 16 KiB
+  is a blocked compact receipt.
 
-### 2. Analyze without mutation
+### 2. Use the smallest worker topology
 
-- If the requested mode is analysis, proceed with the inventory and repository/CLI inspection
-  without a second approval.
-- Present a concise understanding, target, relevant surfaces, and proposed next step in natural
-  language. Do not print internal receipt fields or JSON.
-- Keep all baseline-dirty paths reserved. An unrelated dirty path is not a reason to refuse the
-  analysis. An overlapping dirty path is recorded now and blocks only a later mutation gate.
-- If the objective is underspecified, record the material ambiguity and continue safe analysis
-  when possible. Do not turn assumptions that repository evidence can resolve into questions.
+- Analysis or capability inventory: one worker with a bounded matrix and an external evidence
+  file.
+- One implementation task: one worker, not a fleet.
+- Multiple workers only when exact file ownership is proven disjoint. Serialize hub files and
+  avoid concurrency when the objective does not require it.
+- The control plane sends one line pointing to `BRIEF.md`, the order, and the result path. It
+  never includes a transcript or product excerpt in the dispatch.
 
-### 3. Preflight before control
+### 3. Preflight, then create resources by returned IDs
 
-- Transition to `PREFLIGHTED` only after `OBJECTIVE_ADMITTED` and a fresh internal intake receipt.
-- Require `HERDR_ENV=1` before every Herdr control operation. Outside Herdr, stop; do not
-  silently substitute a focused terminal or create a fleet elsewhere.
-- Run and read `herdr --skill`, then inspect the installed `herdr --help`/group help. Do not copy
-  syntax from this document when the binary disagrees; fail closed and record the mismatch.
-- Resolve `TARGET_REPO` with Git and `realpath`. Pass it explicitly to every `tab create`,
-  `pane split`, and `worktree create`; verify `cwd` and `foreground_cwd` from JSON.
-- Capture `run_id`, versions, model/preset launch form, preflight evidence, and a NUL-safe Git
-  baseline (tracked and untracked paths plus hashes) under the external run directory.
-- Keep credentials in the approved inherited environment or GJC credential store. Secrets never
-  enter prompts, argv, `--env`, orders, result files, pane output, or logs.
+Require `HERDR_ENV=1`. Read `herdr --skill` and installed help; the binary is syntax authority.
+Pass the verified absolute cwd to every `tab create`, `pane split`, and `worktree create`, use
+`--no-focus`, parse every returned opaque ID, and record it in the external ledger immediately.
+Never infer a pane from a label, tab number, focus, or creation order.
 
-### 4. Choose a safe workspace topology
+### 4. Prove exactly one canary
 
-Use a clean dedicated worktree when isolation is needed, or the target checkout when the user
-explicitly wants results there and file ownership is enforced. Do not automatically seed a dirty
-checkout by applying an unreviewed patch. If uncommitted work is present, reserve those paths;
-any overlap blocks the unit unless the mutation gate explicitly records inclusion and
-preservation proof. Never use `git reset`, `restore`, `stash`, or a broad copy to hide user work.
+Launch the exact preflighted GJC command in the returned pane and wait for the single observed
+`agent=gjc` detection. Detection polling is bounded observation, not a canary retry. Submit one
+cheap probe through the worker pane:
 
-For every resource creation:
+```text
+Run exactly node /path/to/gjc-fleet/scripts/canary.mjs --cwd TARGET_REPO --artifact RUN_DIR/canary-result.json --run-dir RUN_DIR --herdr-workspace WORKSPACE_ID --gjc-version GJC_VERSION; write the artifact and stop.
+```
 
-1. issue the installed command with `--cwd "$TARGET_REPO"` and `--no-focus`;
-2. parse the returned workspace/tab/root-pane or split-pane IDs with
-   `scripts/read-herdr-field.mjs`;
-3. immediately append the IDs, resolved cwd, ownership, and state to the ledger;
-4. use those opaque IDs for all later operations.
+`scripts/canary.mjs` proves only launch, cwd, and external artifact write. It must not inspect
+the target tree and must not run `cargo`, `go`, `npm`, `pnpm`, `yarn`, `build`, `test`, `lint`, or
+any product command. A failed canary stops and reports. Do not edit the order and retry it. A
+recent receipt with the same Herdr workspace, GJC version, launcher, and cwd may produce a
+`skipped` proof instead of another launch.
 
-### 5. Prove one canary path
+### 5. Dispatch worker work
 
-Launch the exact preflighted `gjc --model PROVIDER/MODEL [--thinking LEVEL]` or
-`gjc --mpreset NAME` in the returned pane. `agent start` is for supported kinds only; when
-`gjc` is absent from `herdr agent`'s installed `kinds:` list, launch with `pane run` in the
-JSON-returned pane and wait for detection.
+Give each worker an external brief and exact ownership set. Workers may read source files inside
+their task, but they write only assigned product files and external evidence. They must return a
+report with:
 
-Submit one self-contained canary order and verify all of the following before fan-out:
+- `## Summary`: at most 2 KiB;
+- `## Findings`: ranked bullets; the parser returns only the top 8;
+- `## Fixed`, `## Withdrawn`, and `## Out of scope` with real counts;
+- `## Verification` with `live`, `gated`, or `skip` and evidence references;
+- one `FIX_DONE ...` machine line.
 
-- the pane remains at the recorded target cwd;
-- the model/title or GJC startup evidence matches the admitted launch form;
-- a real turn starts and writes its canary result;
-- `agent prompt` either works or the observed `agent_not_ready` path is handled once with
-  `pane send-text` followed by `pane send-keys ... enter`;
-- the canary result, owned-file diff, and required cheap check are inspectable.
+Full logs, patches, source excerpts, and capability tables remain external artifacts. The
+orchestrator invokes `scripts/receipt.mjs` and receives counts/statuses/digest, never the full
+report. A missing or malformed report is unverified, not a pass.
 
-A failed canary stops the fleet. Do not create more sessions to diagnose one broken launch.
+### 6. Enforce test budget before every test command
 
-### 6. Review, freeze, and partition
+A worker claims its focused test before running it:
 
-Fan out read-only reviewers only when their reports and output files are disjoint. Then freeze
-reports into a checksummed directory; later appends are a new review wave. Turn findings into a
-file graph, isolate hub files, and run `node scripts/check-exclusive.mjs` over only the units
-that will be concurrent. Hubs run alone first; re-partition after they land.
+```bash
+node /path/to/gjc-fleet/scripts/budget.mjs test-claim \
+  --ledger "$RUN_DIR/test-ledger.json" \
+  --phase focused --command 'REPO_NATIVE_FOCUSED_COMMAND'
+```
 
-Each write unit gets a `BRIEF.md`, an order, an exclusive exact-file section, and a private result
-path. New files are assigned before dispatch. A worker may read outside its set but must record
-an out-of-scope handoff rather than edit another unit's path. See
-[references/partitioning.md](references/partitioning.md) and
-[references/worker-prompts.md](references/worker-prompts.md).
+After the owner changes the failure cause, claim at most one `owner_reverify` with
+`--after-fix true`. A delegated global-gate worker claims at most one `global` command. The
+helper fingerprints the canonical command and rejects repeated fingerprints, blind retries,
+phase exhaustion, and test claims from a canary. Never run a test command before a successful
+claim. The control plane decides the global gate from the worker receipt; it does not run the
+product command itself.
 
-### 7. Pass the mutation gate before dispatch
+### 7. Track bounded evidence
 
-Immediately before a product-mutating order or worker dispatch, evaluate the internal mutation
-gate against the fresh inventory:
+On every poll, store only unit ID, Herdr status, result existence/size, owned-path count, and
+last evidence time. Read `pane read --source detection --lines 40` for liveness and
+`--source recent-unwrapped --lines 120` only when needed. Never consume a full pane or paste a
+pane/log into the parent context. A timeout, `done`, `idle`, or stale pane is not completion;
+reconcile the compact report, artifact digest, owned-path metadata, and worker state.
 
-- unresolved material ambiguity blocks;
-- incomplete inventory or an empty/unsafe derived boundary blocks;
-- dirty paths that overlap an allowed path block unless explicit preservation/inclusion is recorded;
-- dirty paths outside the boundary remain reserved user work and do not block analysis or
-  unrelated work.
+### 8. Verify and clean up narrowly
 
-A read-only analysis order can proceed without this mutation approval. Never treat a passed
-preflight, a proposed boundary, or a worker's interpretation as a passed mutation gate.
+The control plane verifies report counts, worker-owned path metadata, reserved dirty counts,
+resource ownership, and required gate statuses. It does not open product diffs or run a global
+build/test. Route regressions to the owning worker or a dedicated gate worker. Stop only panes,
+tabs, worktrees, and PIDs created by this run; never close pre-existing `w1P` resources, kill
+Herdr globally, reset/restore/stash user work, or delete a worktree with `--force`.
 
-### 8. Dispatch and track by evidence
-
-Keep dispatch text to one line pointing at the brief/order/result. Submit through the recognized
-agent surface with a bounded timeout; for manually detected GJC, reconcile the same pane and use
-the pane text/key fallback on `agent_not_ready`. Never resend blindly after a timeout or aborted
-wait.
-
-On every poll, record a compact ledger row containing unit, pane, lifecycle observation, result
-existence/size, owned-file progress, and last evidence time. Use bounded waits. After a long wait
-timeout, `agent_prompt_stalled`, or interrupted wait, read `agent get`, pane detection, result,
-diff, and process/cwd state; if the task is still running, continue tracking it with another
-bounded wait.
-
-Interpret statuses exactly as Herdr defines them: `working` is an observed active turn; `idle` is
-ready for input after its tab has been seen; `done` is unseen background work reaching that same
-idle state; `blocked` is a recognized approval/question UI; `unknown` is unclassified and never
-completion. For GJC alternate-screen panes, statuses and terminal output are secondary to result
-artifacts and actual owned-file changes.
-
-### 9. Verify each wave and retire units
-
-A worker's completion line is only a claim. Verify real counts, result tables, owned-file diff,
-and evidence statuses (`live`, `gated`, or `skip`; skip is never pass). The orchestrator owns the
-production build, route/behavior smoke, project-wide detectors, ownership, baseline drift, and
-cleanup gates. Route a regression back to the owning unit rather than editing product code in the
-orchestrator.
-
-When a unit's result and gates are proven, stop and retire only that run-created session, release
-its file ownership, and reuse its pane if useful. Preserve any `working`, `blocked`, unverified,
-or result-less unit. Do not close pre-existing user sessions or any session whose ownership is
-not in the ledger.
-
-### 10. Clean up narrowly and write the receipt
-
-Stop only PIDs and Herdr IDs created by this run. Never use `herdr server stop`, kill the main
-Herdr process, or `pkill -f`. Remove a dedicated worktree only when it has no unique content and
-removal succeeds without `--force`; otherwise preserve and report its path. Leave uncommitted
-product work available for the user.
-
-Write one `gjc-fleet-receipt/v1` receipt containing target/cwd proof, versions and launch form,
-unit counts and evidence, baseline/drift proof, resources retired/preserved, mutation-gate
-evidence, and limitations. Use `complete` only when every requested item and required gate is
-evidenced, no collision or unowned drift exists, user work is preserved, and cleanup is known.
-Otherwise report `incomplete` or `blocked` and continue tracking active units. See
-[references/receipt.md](references/receipt.md).
+Write one bounded `gjc-fleet-receipt/v2` artifact outside the product tree. `complete` requires
+all requested worker outcomes and required gates, no unowned drift, preserved user work, and
+retired resources. Otherwise use `incomplete` or `blocked` and retain the relevant evidence.
 
 ## Failure Fallback
 
-- **No objective:** remain at role admission without repository or runtime inspection.
-- **Target reference cannot be verified:** ask one natural-language target question; do not ask
-  for an intake payload.
-- **`HERDR_ENV` missing or changed:** stop before any Herdr command. This skill cannot safely
-  control a non-Herdr terminal.
-- **Installed help or `herdr --skill` differs:** run the bundled preflight again, capture the
-  exact missing surface, and stop. Do not guess old flags or IDs.
-- **Model nickname is not a preset:** run `gjc --list-models <name>`, choose one exact
-  provider/model row and advertised thinking level, or stop. Never fall back to `default`.
-- **`agent start --kind gjc` rejected:** expected when `gjc` is absent from `kinds:`. Use
-  `pane run` in the JSON-returned pane and wait for detection; do not relabel another agent.
-- **Manual GJC reports `agent_not_ready`:** confirm the same pane with `agent get`/`pane read`,
-  then send the one-line prompt with `pane send-text` and one `pane send-keys ... enter`. Verify
-  the turn started; do not resend text.
-- **Wait timeout, `agent_prompt_stalled`, or aborted wait:** read state, pane, artifact, diff,
-  and cwd; continue tracking a still-running task with a fresh bounded wait. Never infer failure
-  or completion from the timeout alone.
-- **Mutation ambiguity or dirty overlap:** keep the analysis and reserved work intact, ask one
-  material question if needed, and do not dispatch a mutating unit until the gate passes.
-- **Ownership overlap or unowned drift:** stop the affected wave, preserve both changes, narrow
-  or serialize the order, and re-run the verifier. Never restore one worker over another.
-- **Secret required:** use inherited credentials, a stored selector, or a 0600 file outside the
-  repo; never put the value in Herdr/GJC input or output.
-- **Cleanup ambiguity:** preserve the resource and mark it running/unknown. Close only IDs in the
-  ledger that this run created; a completed unit can be cleaned while active units remain.
-- **Worker echoes placeholders or skips silently:** reject the result, keep the pane or reuse it
-  only after a clean stop, and dispatch a sharper edit-first order. No real artifact means no
-  completion.
+- **No objective:** remain role-admitted and ask for a natural-language goal.
+- **Target cannot be verified:** ask one target question; do not inspect source or dispatch.
+- **Missing Herdr environment or changed help:** stop before resource creation.
+- **Intake or receipt cap exceeded:** emit the compact blocked receipt and point to the external
+  artifact; never print the oversized object.
+- **Canary failure or second attempt:** stop the run and report the single observed failure.
+- **Worker report missing/oversized/malformed:** mark the unit unverified; do not read its full
+  log in the parent context and do not retry the same order blindly.
+- **Repeated test fingerprint or exhausted phase:** stop that test path; send only a causal,
+  newly fingerprinted revalidation after an owner fix.
+- **Dirty overlap, ownership collision, or unknown cleanup:** preserve both sides and mark the
+  receipt blocked/incomplete. Never clean by reset, restore, stash, or broad copy.
 
 ## Examples
 
-Activation-only:
+Read-only analysis:
 
-> “Fleet 역할이 준비되었습니다. 원하는 결과를 자연어로 말해 주세요.”
-
-Conversational analysis:
-
-> User: “GUI와 CLI가 동일한 기능을 제공하면 좋겠어.”
+> GUI와 CLI의 기능 차이를 현재 워크스페이스에서 조사해 줘.
 >
-> User: “네가 분석해. 타겟은 현재 워크스페이스야.”
->
-> Orchestrator: “GUI와 CLI의 사용자 기능 격차를 현재 워크스페이스에서 먼저 읽기 전용으로
-> 조사하겠습니다. 관련 진입점과 검증 방법을 파악해 간단한 매트릭스와 실행 계획을
-> 제시하겠습니다. 변경은 조사 결과와 경계가 확인된 뒤에만 시작합니다.”
+> 현재 저장소의 파일 내용은 제가 직접 읽지 않고, worker 한 명이 bounded capability
+> matrix로 조사하도록 위임하겠습니다. 결과는 짧은 요약과 외부 근거 링크로만 정리합니다.
 
-An underspecified mutation request:
+One-line dispatch:
 
-> User: “fix it”
->
-> Orchestrator: “무엇을 고칠지는 저장소 조사로 확인할 수 있지만, 실제 변경 전에 원하는
-> 결과가 무엇인지 한 가지만 확인해야 합니다. 어떤 사용자-visible 결과를 바꾸면 되나요?”
-
-Resolve and admit a Luna model rather than treating a nickname as a preset:
-
-```bash
-gjc --list-models LunaMaxxing
-gjc --list-models gpt-5.6-luna
-node /path/to/gjc-fleet/scripts/preflight.mjs \
-  --repo "$TARGET_REPO" --intake-receipt "$RUN_DIR/intake.json" \
-  --model openai-codex/gpt-5.6-luna --thinking max
+```text
+Read /tmp/gjc-fleet.X/BRIEF.md and /tmp/gjc-fleet.X/orders/f1-order.md; execute the bounded order; write only the compact result summary to /tmp/gjc-fleet.X/results/f1-result.md.
 ```
 
-Create a background pane without stealing focus and parse its actual ID:
+A worker report can be summarized to the user as:
 
-```bash
-response="$(herdr pane split --pane "$PARENT_PANE" --direction right \
-  --cwd "$TARGET_REPO" --no-focus)" || exit 2
-worker_pane="$(printf '%s' "$response" |
-  node /path/to/gjc-fleet/scripts/read-herdr-field.mjs result.pane.pane_id)" || exit 2
-herdr pane run "$worker_pane" "gjc --model openai-codex/gpt-5.6-luna --thinking max"
-```
-
-Handle the known manual-detection prompt edge and then reconcile a bounded wait:
-
-```bash
-if ! herdr agent prompt "$worker_pane" "$PROMPT" --wait --timeout 5000; then
-  herdr agent get "$worker_pane"
-  herdr pane send-text "$worker_pane" "$PROMPT" || exit 2
-  herdr pane send-keys "$worker_pane" enter || exit 2
-fi
-if ! herdr agent wait "$worker_pane" --timeout 120000; then
-  herdr agent get "$worker_pane"
-  herdr pane read "$worker_pane" --source detection --lines 40
-fi
-```
-
-Prove a concurrent wave and finish with a factual receipt:
-
-```bash
-node /path/to/gjc-fleet/scripts/check-exclusive.mjs \
-  "$RUN_DIR/orders/f2-order.md" "$RUN_DIR/orders/f3-order.md"
-# Run the build/smoke/ownership/baseline gates, retire only verified resources,
-# then write $RUN_DIR/receipt.json with state complete/incomplete/blocked.
-```
+> CLI는 X7 HID의 info/read/dump/safe-write를 제공하고, Chameleon/deep-decode는 Rust core
+> 쪽 재사용 가능 API는 있으나 CLI 진입점이 없습니다. 세부 근거는 외부 report에 보관했고,
+> 확인하지 않은 hardware-dependent 동작은 미지원으로 단정하지 않았습니다.

@@ -1,0 +1,18 @@
+{
+  "name": "wcopy-mac-context-thin",
+  "prior_run": {
+    "run_dir": "/var/folders/bd/dq0gbrc917g7x6vd531rxcwc0000gn/T/gjc-fleet.70G2cr",
+    "intake_bytes_observed": 12634736,
+    "herdr_workspace": "w1P",
+    "canary_attempts_observed": 3,
+    "pane_read_policy_observed": "unbounded/full consumption"
+  },
+  "required_invariants": [
+    "intake-output-at-most-receipt-cap",
+    "canary-forbids-cargo-and-product-commands",
+    "one-canary-attempt-per-run",
+    "repeated-test-fingerprint-blocked",
+    "worker-report-summary-only-parsing",
+    "dirty-tree-compact-intake"
+  ]
+}

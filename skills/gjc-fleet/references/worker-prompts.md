@@ -1,73 +1,47 @@
-# Worker assignment and result contract
+# Worker assignment and compact result contract
 
-A worker has no conversation memory. Put the contract in files and keep the submitted prompt a
-single line. Use one isolated result path per unit under the run directory, never a shared result
-or product file.
+Workers have no parent conversation context. Put the full task contract in external files and
+send one line pointing to them. The orchestrator does not put source excerpts, terminal output,
+patches, credentials, or logs in the dispatch.
 
-## Files
+## External files
 
-| File | Rule |
+| File | Purpose |
 | --- | --- |
-| `BRIEF.md` | Shared invariants, target root, baseline policy, forbidden actions, evidence rules. |
-| `<id>-order.md` | Exact assignment, frozen evidence, and `## Exclusive file set` paths. |
-| `<id>-result.md` | Worker-owned durable result; it is the completion gate. |
+| `BRIEF.md` | target, objective, invariants, forbidden actions, budget ledger path |
+| `<id>-order.md` | exact worker-owned files and bounded task |
+| `<id>-result.md` | durable report written by the worker outside the product tree |
+| `test-ledger.json` | claims before focused/revalidation/global test commands |
 
-The dispatch contains only paths and a short start instruction, for example:
+The worker may read product source needed for its assignment. The orchestrator may not. A worker
+edits only its exact exclusive set; an out-of-scope dependency is reported rather than edited.
 
-```text
-Read /tmp/gjc-fleet.abc/BRIEF.md and /tmp/gjc-fleet.abc/orders/f2-order.md. Execute the order now; write the required result to /tmp/gjc-fleet.abc/results/f2-result.md; do not report completion before the file is real.
-```
+## Required worker clauses
 
-Do not put credentials, full terminal transcripts, or secrets in any of these files. The target
-root and result paths are explicit absolute paths; do not rely on the pane's inherited cwd.
+Include all of these in the brief and order:
 
-## Non-negotiable worker clauses
+- modify only the exact `## Exclusive file set` paths;
+- never commit, push, checkout, branch, stash, reset, restore, install dependencies, or stop a
+  shared server;
+- use existing repository commands and do not hide warnings or weaken a failing check;
+- do not run a canary or product command as a launch probe;
+- claim a test in `test-ledger.json` before running it; no blind retry and no repeated fingerprint;
+- focused test budget is one; after an owner fix, one `owner_reverify` is allowed; the global gate
+  is one delegated worker claim;
+- keep full logs, patches, source excerpts, and long capability matrices in external artifacts;
+- never place secrets in prompts, commands, reports, screenshots, or logs.
 
-Include these clauses in `BRIEF.md` and the order:
+## Report shape
 
-- Modify only the exact paths in `## Exclusive file set`. Reading other files is allowed.
-- If a fix needs another file, do not edit it; record the item under `## Out of scope` with the
-  blocking path and reason.
-- Never skip an item silently. Classify it as fixed, withdrawn with evidence, or out of scope.
-- Do not `git commit`, `git push`, `git checkout`, `git branch`, `git stash`, `git restore`,
-  install dependencies, stop a shared server, or run a formatter that rewrites sibling files.
-  The user decides how uncommitted work is landed.
-- Work edit-first: take the highest-severity item, read only its evidence, make the smallest
-  correct change, and verify it before moving on. Do not spend the whole turn planning.
-- Use only the repository's existing commands and dependencies. Do not hide warnings or replace
-  a failing gate with a weaker command.
-- Never place a secret in a prompt, command argument, generated result, screenshot, or log.
-
-The orchestrator owns production builds, project-wide lint, global smoke, ownership, baseline
-and cleanup gates. Workers run only the explicitly assigned cheap checks.
-
-## Evidence format
-
-Every verification claim has a status and evidence. Require this table in the result:
+The worker writes a report with these sections:
 
 ```markdown
-## Verification
-| check | status | command or surface | evidence | limitation |
-| --- | --- | --- | --- | --- |
-| typecheck | live | `...` | exit 0, log path |  |
-| production build | gated | orchestrator-owned | pending receipt | not run by worker |
-| browser route | skip | `...` |  | browser unavailable |
-```
+## Summary
+One concise outcome, no more than 2 KiB.
 
-Use statuses exactly:
+## Findings
+- severity-ranked finding with an evidence path and line/range
 
-- `live`: actually executed against the relevant local code, service, browser, or CLI;
-- `gated`: intentionally owned by the orchestrator and recorded after the wave;
-- `skip`: not executed; a concrete reason is mandatory and it is never a pass.
-
-A command name without exit status, output path, assertion, or limitation is not evidence. A
-worker may report an honest `skip`; the orchestrator must not translate it to `pass`.
-
-## Completion gate
-
-Require these sections in every result:
-
-```markdown
 ## Fixed
 | severity | item | files | what changed |
 
@@ -79,18 +53,25 @@ Require these sections in every result:
 
 ## Verification
 | check | status | command or surface | evidence | limitation |
+| --- | --- | --- | --- | --- |
+| focused | live | existing focused command | exit code and external log path | |
+| global | gated | delegated gate worker | pending/receipt path | not owned here |
 ```
 
-The last line is machine-parseable and must contain actual counts:
+Use only `live`, `gated`, or `skip` for verification. `skip` needs a concrete limitation and is
+never a pass. End with a real machine line:
 
 ```text
 FIX_DONE <id> FIXED=<n> WITHDRAWN=<n> OUTOFSCOPE=<n> TYPECHECK=<pass|fail|skip>
 ```
 
-The literal `n` is a placeholder, not a valid count. A done line without a non-empty result
-file, real tables, changed-file evidence, and verification entries is a failed run regardless of
-what the terminal says. Out-of-scope work is a handoff, not a successful fix for that item.
+The control plane invokes `scripts/receipt.mjs`. It receives only summary (<=2 KiB), top eight
+findings, counts, verification statuses, report byte count, and one external SHA-256 digest.
+It never loads the full report into its conversation context. A missing machine line, missing
+counts, malformed verification, placeholder count, or missing report is unverified.
 
-When terminal output is incomplete because of alternate-screen rendering, the result file and
-owned-file diff remain the source of truth. Ask for a transcript file only as a later fallback;
-do not mistake a stale pane snapshot for proof.
+## Analysis worker
+
+For analysis-only objectives, assign one worker a bounded capability matrix. Ask it to inspect
+only relevant source surfaces and record evidence paths in an external report. Return its compact
+summary and top findings in natural language; do not expose the report JSON or terminal log.

@@ -20,6 +20,7 @@
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { BUDGETS, jsonBytes } from "./budget.mjs";
 import { STATES, TRANSITIONS, validateObjectiveReceipt } from "./intake.mjs";
 
 const PRESET_MARKER = "GJC_FLEET_PRESET_OK";
@@ -30,6 +31,7 @@ function usage() {
 
 Read-only checks:
   - an OBJECTIVE_ADMITTED intake receipt whose target matches --repo
+  - a compact receipt within ${BUDGETS.receiptMaxBytes} bytes
   - HERDR_ENV=1 and a real Git repository
   - herdr --skill and the installed Herdr command/flag surface
   - gjc --version/--help and either an exact provider/model or a preset probe
@@ -68,7 +70,7 @@ function run(bin, args, allowExitCodes = new Set()) {
     result = spawnSync(bin, args, {
       encoding: "utf8",
       env: process.env,
-      maxBuffer: 4 * 1024 * 1024,
+      maxBuffer: BUDGETS.preflightOutputMaxBytes,
       timeout: 30_000,
     });
   } catch (error) {
@@ -96,6 +98,15 @@ function requireOutput(label, result, required, allowExitCodes = new Set()) {
 
 function loadIntakeReceipt(path, requestedRepo) {
   if (!path) fail("--intake-receipt is required; preflight cannot run from role admission alone");
+  let size;
+  try {
+    size = statSync(path).size;
+  } catch {
+    fail("--intake-receipt is not readable");
+  }
+  if (size > BUDGETS.receiptMaxBytes) {
+    fail(`--intake-receipt exceeds the ${BUDGETS.receiptMaxBytes}-byte receipt cap`);
+  }
   let receipt;
   try {
     receipt = JSON.parse(readFileSync(path, "utf8"));
@@ -260,7 +271,7 @@ function main() {
   const gjc = values.get("gjc-bin") ?? "gjc";
   const herdrResult = checkHerdr(herdr);
   const gjcResult = checkGjc(gjc, values.get("model"), values.get("preset"), values.get("thinking"));
-  console.log(JSON.stringify({
+  const result = {
     ok: true,
     phase: "PREFLIGHTED",
     state_machine: {
@@ -272,8 +283,11 @@ function main() {
     repo,
     herdr: herdrResult,
     gjc: gjcResult,
-    note: "Preflight is read-only. Analysis needs no mutation approval; mutating resource creation still requires a passed gate and every JSON-returned ID in the ledger.",
-  }, null, 2));
+    budgets: BUDGETS,
+    note: "Preflight is control-plane-only. It reads bounded metadata and installed CLI syntax; product discovery, edits, and tests belong to workers.",
+  };
+  if (jsonBytes(result) > BUDGETS.receiptMaxBytes) fail("preflight receipt exceeds the compact receipt cap");
+  console.log(JSON.stringify(result, null, 2));
 }
 
 try {
