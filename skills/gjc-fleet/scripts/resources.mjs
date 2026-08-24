@@ -55,7 +55,7 @@ function externalArtifactPath(path, repoRoot) {
   return artifact;
 }
 
-function fileDescriptor(root, absolute, relativePath, entries) {
+function fileDescriptor(absolute, relativePath, entries) {
   if (entries.length >= MAX_ENTRIES) return;
   let stat;
   try {
@@ -74,7 +74,7 @@ function fileDescriptor(root, absolute, relativePath, entries) {
       return;
     }
     for (const child of children) {
-      fileDescriptor(root, join(absolute, child), `${relativePath}/${child}`, entries);
+      fileDescriptor(join(absolute, child), `${relativePath}/${child}`, entries);
       if (entries.length >= MAX_ENTRIES) return;
     }
     return;
@@ -112,6 +112,27 @@ function fileDescriptor(root, absolute, relativePath, entries) {
     size: stat.size,
     sha256,
   });
+}
+
+function shallowDescriptor(absolute, relativePath) {
+  try {
+    const stat = lstatSync(absolute);
+    if (stat.isDirectory()) return { path: relativePath, type: "directory", size: 0, sha256: null };
+    if (stat.isSymbolicLink()) {
+      return {
+        path: relativePath,
+        type: "symlink",
+        size: stat.size,
+        sha256: digest(Buffer.from(readlinkSync(absolute), "utf8")),
+      };
+    }
+    if (!stat.isFile()) return { path: relativePath, type: "other", size: stat.size, sha256: null };
+    let sha256 = null;
+    if (stat.size <= MAX_HASH_BYTES) sha256 = digest(readFileSync(absolute));
+    return { path: relativePath, type: "file", size: stat.size, sha256 };
+  } catch {
+    return { path: relativePath, type: "unreadable", size: null, sha256: null };
+  }
 }
 
 function snapshotDigest(entries) {
@@ -160,20 +181,41 @@ function publicSnapshot(snapshot) {
   };
 }
 
-export function snapshotRepoRuntime(repoRoot, { artifactPath = null } = {}) {
+export function snapshotRepoRuntime(repoRoot, {
+  artifactPath = null,
+  focusRoots = [],
+} = {}) {
   const root = resolve(repoRoot);
   const runtime = join(root, REPO_RUNTIME_ROOT);
   const entries = [];
   const exists = existsSync(runtime);
-  if (exists) fileDescriptor(root, runtime, REPO_RUNTIME_ROOT, entries);
+  if (exists) {
+    entries.push(shallowDescriptor(runtime, REPO_RUNTIME_ROOT));
+    try {
+      for (const child of readdirSync(runtime).sort()) {
+        entries.push(shallowDescriptor(join(runtime, child), `${REPO_RUNTIME_ROOT}/${child}`));
+      }
+    } catch {
+      entries.push({ path: `${REPO_RUNTIME_ROOT}/<unreadable>`, type: "unreadable", size: null, sha256: null });
+    }
+    fileDescriptor(runtime, REPO_RUNTIME_ROOT, entries);
+    for (const focusRoot of normalizeOwnedRoots(focusRoots)) {
+      const focused = [];
+      const absolute = resolve(root, focusRoot);
+      if (existsSync(absolute)) fileDescriptor(absolute, focusRoot, focused);
+      entries.push(...focused);
+    }
+  }
+  const deduplicated = [...new Map(entries.map((entry) => [entry.path, entry])).values()]
+    .sort((left, right) => left.path.localeCompare(right.path));
   const snapshot = {
     schema: RESOURCE_SNAPSHOT_SCHEMA,
     root: runtime,
     exists,
-    entry_count: entries.length,
-    truncated: entries.length >= MAX_ENTRIES,
-    digest: snapshotDigest(entries),
-    entries,
+    entry_count: deduplicated.length,
+    truncated: deduplicated.length >= MAX_ENTRIES,
+    digest: snapshotDigest(deduplicated),
+    entries: deduplicated,
     artifact: null,
   };
   if (artifactPath !== null) {
