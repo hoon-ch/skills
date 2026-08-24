@@ -299,6 +299,20 @@ test("the w3Nalx dirty-adoption fixture admits six exact dirty paths without fre
     assert.equal(dispatch.mutation_gate.unauthorized_overlap_count, 0);
     assert.deepEqual(dispatch.assignment.adopted_paths, fixtureData.reserved_dirty_paths);
 
+    const flatGate = evaluateMutationGate(receipt, {
+      mode: "mutation",
+      stage: "dispatch",
+      dirty_mode: fixtureData.adoption.mode,
+      baseline_paths: fixtureData.reserved_dirty_paths,
+      adopted_paths: fixtureData.reserved_dirty_paths,
+      baseline_digest: fixtureData.adoption.baseline_digest,
+      baseline_review: adoption.baseline_review,
+      worker_id: fixtureData.adoption.worker_id,
+      owned_paths: fixtureData.reserved_dirty_paths,
+    });
+    assert.equal(flatGate.admitted, true);
+    assert.equal(flatGate.adoption.adopted_count, fixtureData.reserved_dirty_paths.length);
+
     const adoptedReceipt = recordAdoptedAssignment(receipt, adoption);
     assert.equal(adoptedReceipt.mutation_authorized, true);
     const verified = verifyAdoptedAssignment(adoptedReceipt, {

@@ -912,8 +912,17 @@ function adoptionFor(source, inventory, evidence, options) {
     {};
   const adoption = isRecord(candidate) ? { ...candidate } : {};
   adoption.mode = adoption.mode ?? dirtyReservationMode(source, options);
-  adoption.baseline_paths = adoption.baseline_paths ?? options.baseline_paths ?? options.dirty_paths ?? evidence.paths;
-  adoption.adopted_paths = adoption.adopted_paths ?? options.adopted_paths ?? options.paths ?? [];
+  adoption.baseline_paths = adoption.baseline_paths ??
+    adoption.dirty_paths ??
+    options.baseline_paths ??
+    options.dirty_paths ??
+    evidence.paths;
+  adoption.adopted_paths = adoption.adopted_paths ??
+    adoption.paths ??
+    adoption.assignment?.paths ??
+    options.adopted_paths ??
+    options.paths ??
+    [];
   adoption.expected_baseline_digest = adoption.expected_baseline_digest ??
     inventory.artifacts?.dirty?.sha256 ??
     null;
