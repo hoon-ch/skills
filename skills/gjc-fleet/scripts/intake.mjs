@@ -32,6 +32,12 @@ import {
   validateDirtyAdoption,
 } from "./dirty-adoption.mjs";
 
+export {
+  DIRTY_RESERVATION_MODES,
+  inferDirtyReservationMode,
+  validateDirtyAdoption,
+} from "./dirty-adoption.mjs";
+
 export const INVOCATION = "/skill:gjc-fleet";
 export const INTAKE_SCHEMA = "gjc-fleet-intake/v3";
 export const INTERNAL_DIRTY_PATHS = Symbol("gjc-fleet-dirty-paths");
@@ -906,7 +912,8 @@ function adoptionFor(source, inventory, evidence, options) {
     {};
   const adoption = isRecord(candidate) ? { ...candidate } : {};
   adoption.mode = adoption.mode ?? dirtyReservationMode(source, options);
-  adoption.baseline_paths = adoption.baseline_paths ?? evidence.paths;
+  adoption.baseline_paths = adoption.baseline_paths ?? options.baseline_paths ?? options.dirty_paths ?? evidence.paths;
+  adoption.adopted_paths = adoption.adopted_paths ?? options.adopted_paths ?? options.paths ?? [];
   adoption.expected_baseline_digest = adoption.expected_baseline_digest ??
     inventory.artifacts?.dirty?.sha256 ??
     null;
