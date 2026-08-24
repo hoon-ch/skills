@@ -106,7 +106,16 @@ export function nextPromptStep({
   manuallyDetected = false,
 } = {}) {
   const plan = buildPromptPlan({ paneId, prompt, manuallyDetected });
-  if (errorCode === null) return { ...plan.primary, fallback_attempts: fallbackAttempts };
+  if (errorCode === null) {
+    if (fallbackAttempts > 0) {
+      return {
+        action: "stop",
+        reason: "fallback already used; reconcile lifecycle or artifact instead of prompting again",
+        fallback_attempts: fallbackAttempts,
+      };
+    }
+    return { ...plan.primary, fallback_attempts: fallbackAttempts };
+  }
   if (errorCode !== "agent_not_ready") {
     return {
       action: "stop",

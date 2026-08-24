@@ -781,6 +781,11 @@ test("manual GJC fallback uses one pane-id prompt, one send-text-enter, and boun
     prompt: "write the artifact",
     errorCode: "agent_not_found",
   }).action, "stop");
+  assert.equal(nextPromptStep({
+    paneId: "w1:p8",
+    prompt: "write the artifact",
+    fallbackAttempts: 1,
+  }).action, "stop");
   assert.equal(reconcileFallback({ fallbackAttempts: 1, lifecycleTransition: true }).status, "observed");
   assert.equal(reconcileFallback({ fallbackAttempts: 1, artifactReady: true }).status, "observed");
   assert.equal(reconcileFallback({ fallbackAttempts: 1 }).status, "blocked");
