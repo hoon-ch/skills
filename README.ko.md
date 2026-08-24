@@ -36,6 +36,7 @@ npx skills add hoon-ch/skills -g \
   --skill transcript-lecture-notes \
   --skill claude-code-assist \
   --skill crabbox-proxmox \
+  --skill gjc-fleet \
   --skill design-taste-frontend \
   --yes
 ```
@@ -73,6 +74,7 @@ npx skills add hoon-ch/skills -g --list
 | `claude-code-assist` | Codex가 Claude Code CLI를 사용해 review, source-backed research, second opinion, bounded delegation, review evidence capture를 수행해야 할 때 씁니다. |
 | `crabbox-proxmox` | Proxmox 기반 격리 VM에서 build, run, debug, browser proof를 수행하고 Compose·database·queue 같은 인프라까지 함께 띄워야 할 때 씁니다. |
 | `design-taste-frontend` | landing page, portfolio, 리디자인 작업에서 템플릿처럼 보이는 뻔한 AI 결과물을 피해야 할 때 씁니다. |
+| `gjc-fleet` | Herdr 세션(`HERDR_ENV=1`) 안에서 넓은 범위의 작업을 여러 GJC 워커 세션으로 나눠 오케스트레이션하고, 병렬 워커가 서로 충돌하지 않도록 분할해야 할 때 씁니다. |
 
 ## Maintainer Workflow
 

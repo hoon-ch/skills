@@ -36,6 +36,7 @@ npx skills add hoon-ch/skills -g \
   --skill transcript-lecture-notes \
   --skill claude-code-assist \
   --skill crabbox-proxmox \
+  --skill gjc-fleet \
   --skill design-taste-frontend \
   --yes
 ```
@@ -73,6 +74,7 @@ All three install surfaces expose the same published skills from `skills/`.
 | `claude-code-assist` | You need Codex to use Claude Code CLI for focused reviews, source-backed research, second opinions, bounded delegation, or review evidence capture. |
 | `crabbox-proxmox` | You need an isolated Proxmox-backed remote-dev VM to build, run, debug, or browser-prove a task, including adjacent infrastructure such as Compose, databases, and queues. |
 | `design-taste-frontend` | You are building or redesigning a landing page, portfolio, or marketing site and need to avoid templated, obviously-AI output. |
+| `gjc-fleet` | You are inside a Herdr session (`HERDR_ENV=1`) and need to orchestrate many GJC worker sessions across a wide surface, partitioning the work so parallel workers cannot conflict. |
 
 ## Maintainer Workflow
 
