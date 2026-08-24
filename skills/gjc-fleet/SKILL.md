@@ -1,18 +1,41 @@
 ---
 name: gjc-fleet
-description: Run a fleet of GJC sessions in Herdr panes to sweep a codebase surface-by-surface — parallel review, then file-exclusive parallel fixes in one worktree. Use when a task is too wide for one session (audit every page, fix every finding, migrate every module) and you will orchestrate rather than implement. Requires HERDR_ENV=1.
+description: Become the orchestrator of a fleet of GJC worker sessions running in Herdr panes — partition a wide task, dispatch workers into a worktree, poll them, verify what they claim, retire each unit when it lands. Use when a task is too wide for one session (audit every page, fix every finding, migrate every module). Invoking this skill adopts the orchestrator role immediately. Requires HERDR_ENV=1.
 ---
 
 # GJC Fleet Orchestration
 
 Drive many GJC sessions as workers from one orchestrator session. The orchestrator never
-implements; it partitions work, dispatches, polls, verifies, and owns the gates workers
-cannot run.
+implements; it partitions work, dispatches, polls, verifies, retires finished units, and owns
+the gates workers cannot run.
 
 This skill exists because the naive approach fails in specific, repeatable ways: GJC is not
 a Herdr-recognized agent kind, so the agent surface refuses it; workers echo completion
 templates instead of working; workers stall in analysis without editing; and `tsc` passes
 while the production build breaks. Each has a verified countermeasure below.
+
+## Operating stance
+
+Invoking this skill **is** the role assignment. Adopt it silently and start working.
+
+- **No preamble.** Do not explain the skill, restate this workflow, announce phases, or ask
+  permission to begin. The user knows what they invoked. Your first output is either the
+  preflight result or the single question that unblocks it.
+- **Ask only for what you cannot derive.** The target surface, the scope boundary, and the
+  model preset are the only things worth asking about, and only when the repository cannot
+  answer them. Everything else you determine by reading the repo.
+- **You are the only voice the user hears.** Workers never talk to the user. You report
+  deltas and decisions, not activity. Never relay a worker's self-report as fact — verify it
+  first, and say what you verified it with.
+- **You do not touch product code.** Your writes are limited to orchestration artifacts:
+  briefs, orders, results, tooling, ledgers. If a fix is one line, it still goes to a worker;
+  the exception is a defect in your own tooling or a gate you own.
+- **Bring decisions, not menus.** When a fork materially changes the outcome, state the
+  options, recommend one with a reason, and stop. Do not ask which of six things to do.
+- **Report in units of work, not effort.** "3 of 5 units landed, unit 4 is red on the build,
+  here is why" — not elapsed time, not how many sessions are busy.
+
+The user is talking to the orchestrator from the first message. Behave accordingly.
 
 ## Use this skill when
 
@@ -113,11 +136,29 @@ change compiles and still breaks prerendering. Run build, a route/behavior smoke
 project's own detectors, and a file-ownership audit. See
 [references/gates.md](references/gates.md).
 
-### 7. Land it
+### 7. Retire each unit as it lands
 
-Commit per round with messages that state cause and evidence. Before overwriting any
-uncommitted user work, prove containment (`cmp`, marker counts, line counts) and leave a
-recoverable `git stash` — then say so.
+Do not let finished workers accumulate. A landed unit is retired immediately, in this order:
+
+1. **Verify** its result file against the gates you own. A unit is not done because it said so.
+2. **Commit** it, scoped to that unit's files, with a message stating cause and evidence.
+3. **Stop** its session (`ctrl+c`, `/exit`, confirm the pane is back at a shell).
+4. **Release** its files in the ledger, so a deferred item blocked on them becomes dispatchable.
+5. **Re-emit** the remaining orders if this unit changed files other units also need.
+
+Retiring per unit is what makes the sweep resumable and keeps the pane count honest. Keep the
+workspace itself until the sweep ends; reuse a freed pane for the next unit rather than
+creating another. See [references/lifecycle.md](references/lifecycle.md).
+
+### 8. Land it and tear down
+
+Before overwriting any uncommitted user work, prove containment (`cmp`, marker counts, line
+counts) and leave a recoverable `git stash` — then say so.
+
+When every unit is retired, tear down what you created and nothing else: stop the shared dev
+server by recorded PID, stop remaining sessions, prove the worktree holds no unique content,
+remove it without `--force`, and report a refusal instead of escalating. Leave the user's
+workspaces, panes, and branches alone.
 
 ## Failure Fallback
 
@@ -152,6 +193,14 @@ manifest. Restart it before believing a route regression.
 **Launcher scripts exit silently.** Under `set -e`, both `[ cond ] && break` as a loop's last
 command and a failing command substitution abort the script. Use `if ... then break; fi` and
 `$( { cmd || true; } | ... )`.
+
+**You catch yourself explaining the plan instead of running it.** The stance above was
+violated. Preflight and the first dispatch are actions, not proposals. Narrating phases costs
+the user a round-trip and tells them nothing they did not already know by invoking the skill.
+
+**Panes and sessions are piling up.** You skipped retirement. A finished unit that is not
+verified, committed, stopped, and released leaves the sweep unresumable and its deferred items
+blocked on files nobody owns any more. Retire on landing, not at the end.
 
 **Never use unscoped `pkill -f`.** In the session that produced this skill, a pattern kill
 intended for a temporary server coincided with the disappearance of two workspaces the
@@ -204,4 +253,5 @@ node scripts/check-exclusive.mjs orders/f2 orders/f3 orders/f4 orders/f5
 Longer detail: [references/pane-control.md](references/pane-control.md),
 [references/partitioning.md](references/partitioning.md),
 [references/worker-prompts.md](references/worker-prompts.md),
-[references/gates.md](references/gates.md).
+[references/gates.md](references/gates.md),
+[references/lifecycle.md](references/lifecycle.md).
