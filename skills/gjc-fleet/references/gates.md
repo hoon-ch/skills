@@ -12,7 +12,7 @@ or a sentence in a pane never proves a gate.
 | `PREFLIGHTED` | current Herdr/GJC help, versions, exact launch form | remembered syntax |
 | `DISPATCHING` | passed mutation gate, returned IDs, one canary proof | labels or guessed IDs |
 | `TRACKING` | bounded lifecycle/status and report existence | `done`, `idle`, timeout |
-| `VERIFYING` | compact report, ownership counts, test ledger, gate statuses | pane/log transcript |
+| `VERIFYING` | compact report, ownership counts, dirty-adoption proof, test ledger, gate statuses | pane/log transcript |
 | `RECEIPT` | bounded final receipt, cleanup and limitations | optimistic worker text |
 
 ## Evidence vocabulary
@@ -40,6 +40,28 @@ context. Route failures to a worker and retain external evidence.
 
 ## Mutation gate
 
-Mutation is blocked for unresolved material ambiguity, incomplete metadata, empty/unsafe boundary,
-known dirty overlap, or unavailable dirty artifact. A read-only analysis does not need mutation
-approval. Passing preflight or canary does not authorize a product edit.
+Dirty work has two explicit reservation modes:
+
+- `preserve_no_touch`: reserve the baseline and reject any assignment that overlaps it.
+- `preserve_and_continue`: allow the goal to extend the baseline only after a read-only worker
+  reviews the exact paths and baseline digest.
+
+Dirty overlap is not itself a blocker. The gate blocks only unauthorized overlap. An adopted
+assignment must carry the exact path list, the reserved baseline digest, a worker owner whose
+paths match that list, and a post-diff preservation proof before completion. Reset, restore,
+stash, delete, and broad copy remain forbidden.
+
+If the objective does not establish either mode, return a `blocked-awaiting-user` receipt with
+one natural-language choice question. Do not convert that ambiguity into an `incomplete`
+implementation result.
+
+A read-only analysis does not need mutation approval. Passing preflight or canary does not
+authorize a product edit.
+
+## Runtime-state ownership
+
+Snapshot `.gjc/` before launch. Prefer `gjc --no-session --no-mcp` for an ephemeral worker, or
+`gjc --session-dir "$RUN_DIR/gjc-session" --no-mcp` when a session artifact is required. A
+repo-local `.gjc/` created from a recorded run-owned session is a run-owned resource and may be
+cleaned narrowly. Pre-existing, user-modified, or unexplained state is preserved and is not
+counted as product drift.

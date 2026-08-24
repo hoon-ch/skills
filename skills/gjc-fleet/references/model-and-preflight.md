@@ -25,8 +25,9 @@ central budget table.
 
 The installed binary is the authority. Require the current `tab`, `pane`, `worktree`, `agent`,
 wait, and bounded pane-read surfaces, including `--cwd`, `--no-focus`, JSON ID responses,
-`detection`, `recent-unwrapped`, and finite timeouts. A missing or changed surface stops before
-resource creation.
+`detection`, `recent-unwrapped`, and finite timeouts. Require GJC's `--session-dir`,
+`--no-session`, and `--no-mcp` flags as well. A missing or changed surface stops before resource
+creation.
 
 Admission also runs plain `node` against the exact installed canary path. The self-test must
 produce non-empty stdout and a non-empty valid artifact with a verified digest. A zero-byte
@@ -45,7 +46,7 @@ A nickname is not a provider/model row and is never silently replaced. A configu
 separate input:
 
 ```bash
-gjc -p --mpreset "$PRESET" --no-session --no-tools --mode text \
+gjc -p --mpreset "$PRESET" --no-session --no-mcp --no-tools --mode text \
   'reply with exactly: GJC_FLEET_PRESET_OK'
 ```
 
@@ -58,3 +59,21 @@ the receipt must match the observed form exactly.
 Credentials stay in the inherited approved GJC environment or a credential selector. Never put
 secrets in a brief, order, prompt, argv, `--env`, report, receipt, pane, or log. The receipt may
 record presence/status but never values or the full environment.
+
+## Worker launch state
+
+The default worker launch is:
+
+```bash
+gjc --model openai-codex/gpt-5.6-luna --thinking max --no-session --no-mcp
+```
+
+When a session artifact is explicitly needed, replace `--no-session` with an external path:
+
+```bash
+gjc --model openai-codex/gpt-5.6-luna --thinking max \
+  --session-dir "$RUN_DIR/gjc-session" --no-mcp
+```
+
+Never point `--session-dir` into the target repository. Snapshot `.gjc/` before launch anyway:
+older runtimes may create repo-local runtime markers even when session persistence is disabled.

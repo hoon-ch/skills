@@ -12,8 +12,8 @@ DORMANT -> ROLE_ADMITTED -> OBJECTIVE_ADMITTED -> PREFLIGHTED -> DISPATCHING
 
 Activation-only admission stops at `ROLE_ADMITTED` without repository or runtime reads.
 `OBJECTIVE_ADMITTED` proves a verified target and bounded metadata inventory only. `PREFLIGHTED`
-proves installed control syntax and launch form. A mutation gate is evaluated immediately before
-a worker order that may edit product files.
+proves installed control syntax and the safe GJC launch form. A mutation gate is evaluated
+immediately before a worker order that may edit product files.
 
 ## Ledger before memory
 
@@ -44,13 +44,27 @@ full hashes, patches, or report bodies into the ledger.
 
 ## Preserve user work
 
-Dirty paths are reserved by count/sample/external NUL-safe digest. Dirty overlap blocks mutation;
-unavailable evidence also blocks because disjointness cannot be proven. Never use commit, push,
-stash, reset, restore, broad copy, or formatter cleanup to make the baseline appear clean.
+Dirty paths are reserved by count/sample/external NUL-safe digest. Select
+`preserve_no_touch` or `preserve_and_continue`; the latter requires a read-only baseline review,
+exact adopted paths, digest, and worker ownership. Dirty overlap blocks only when it is
+unauthorized. A completion receipt additionally requires a post-diff preservation proof. Never
+use commit, push, stash, reset, restore, broad copy, or formatter cleanup to make the baseline
+appear clean.
+
+If the mode is ambiguous, issue one natural-language question and persist
+`blocked-awaiting-user`; do not mark an implementation incomplete merely because the baseline is
+dirty.
+
+Before launch, snapshot repo-local `.gjc/` separately from Git status. `--no-session --no-mcp`
+is the default worker policy; `--session-dir` may point at an external run directory when a
+session artifact is needed. Only paths registered in the resource ledger may be cleaned.
+Pre-existing or unexplained runtime state is preserved and excluded from product drift.
 
 ## Cleanup
 
 Stop only PIDs and Herdr IDs created by this run. Close only created panes/tabs/workspaces, and
 remove a dedicated worktree only when it has no unique content and removal succeeds without
 `--force`. Never close pre-existing resources such as workspace `w1P`, stop the Herdr server, or
-use `pkill -f`. Unknown cleanup remains preserved and makes the final receipt incomplete/blocked.
+Unknown cleanup remains preserved and makes the final receipt incomplete/blocked. A malformed
+worker report permits one report-only correction on the same worker; it does not rerun the order,
+a product test, or the canary.

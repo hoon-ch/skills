@@ -18,9 +18,13 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
   admit,
+  admitImplementationDispatch,
+  applyMutationGate,
   evaluateMutationGate,
+  recordAdoptedAssignment,
   readOnlyInventory,
   userFacingSummary,
+  verifyAdoptedAssignment,
   validateObjectiveReceipt,
 } from "./intake.mjs";
 import {
@@ -38,7 +42,20 @@ import {
   reconcileFallback,
   selectLeafAgent,
 } from "./agent-target.mjs";
-import { compactFleetReceipt, readWorkerReport, receiptHasOnlyBoundedWorkerFields } from "./receipt.mjs";
+import {
+  claimReportOnlyCorrection,
+  compactFleetReceipt,
+  newReportCorrectionLedger,
+  readWorkerReport,
+  receiptHasOnlyBoundedWorkerFields,
+} from "./receipt.mjs";
+import {
+  cleanupRunOwnedRuntime,
+  classifyRepoRuntime,
+  recordRunOwnedResource,
+  snapshotRepoRuntime,
+} from "./resources.mjs";
+import { buildGjcLaunch, validateExternalSessionDir } from "./launch.mjs";
 
 const scripts = dirname(fileURLToPath(import.meta.url));
 const repoRoot = existsSync(resolve(process.cwd(), "skills", "gjc-fleet"))
@@ -57,6 +74,8 @@ const exclusive = join(scripts, "check-exclusive.mjs");
 const dialogueFixture = join(scripts, "fixtures", "conversational-current-workspace.json");
 const regressionFixture = join(scripts, "fixtures", "wcopy-mac-context-thin.json");
 const symlinkRegressionFixture = join(scripts, "fixtures", "symlink-canary-context-thin.json");
+const dirtyAdoptionFixture = join(scripts, "fixtures", "wcopy-mac-dirty-adoption.json");
+const dirtyAdoptionReportFixture = join(scripts, "fixtures", "wcopy-mac-dirty-adoption-result.md");
 
 function executable(path, source) {
   writeFileSync(path, `#!/usr/bin/env node\n${source}`);
@@ -111,7 +130,7 @@ else if (args.includes("--list-models")) {
   if (process.env.FAKE_GJC_MODE === "bad-model") out('No models matching "gpt-5.6-luna"');
   else out("Provider models\\nopenai-codex gpt-5.6-luna 372K 128K low,medium,high,xhigh,max yes");
 } else if (args.includes("-p")) out("GJC_FLEET_PRESET_OK");
-else if (args.includes("--help")) out("--model --mpreset --thinking --list-models --no-session --no-tools --mode");
+else if (args.includes("--help")) out("--model --mpreset --thinking --list-models --session-dir --no-session --no-mcp --no-tools --mode");
 else out("ok");
 `);
   return { root, repo, herdr, gjc };
@@ -222,7 +241,7 @@ test("current workspace dialogue resolves through Git and stays bounded", () => 
     assert.ok(receipt.inventory.dirty_count >= 0);
     assert.ok(receipt.inventory.artifacts.dirty);
     assert.deepEqual(validateObjectiveReceipt(receipt, fx.repo), []);
-    assert.doesNotMatch(result.stdout, /tracked_paths|dirty_paths|full_status|hashes/);
+    assert.doesNotMatch(result.stdout, /"(?:tracked_paths|dirty_paths|full_status|hashes)"\s*:/);
   } finally {
     removeFixture(fx);
   }
@@ -234,6 +253,242 @@ test("the current wcopy-mac regression fixture encodes the observed failure mode
   assert.equal(fixtureData.prior_run.herdr_workspace, "w1P");
   assert.equal(fixtureData.prior_run.canary_attempts_observed, 3);
   assert.ok(fixtureData.required_invariants.includes("dirty-tree-compact-intake"));
+});
+
+test("the w3Nalx dirty-adoption fixture admits six exact dirty paths without freezing them", () => {
+  const fixtureData = JSON.parse(readFileSync(dirtyAdoptionFixture, "utf8"));
+  const fx = fixture();
+  try {
+    const receipt = admit({
+      ...intakePayload(fx.repo, join(fx.root, "adoption-run")),
+      objective: "Implement GUI and CLI parity by continuing the existing Rust CLI work while preserving the baseline",
+      mode: "orchestrate",
+      feature_targets: fixtureData.adoption.feature_targets,
+      inventory: {
+        status: "ready",
+        read_only: true,
+        repo_root: fx.repo,
+        tracked_paths: ["app/gui.ts", ...fixtureData.reserved_dirty_paths],
+        dirty_paths: fixtureData.reserved_dirty_paths,
+        top_level_paths: ["app", "rust"],
+      },
+    });
+    assert.equal(receipt.dirty_reservation.mode, "preserve_and_continue");
+    const adoption = {
+      mode: fixtureData.adoption.mode,
+      baseline_paths: fixtureData.reserved_dirty_paths,
+      adopted_paths: fixtureData.reserved_dirty_paths,
+      baseline_digest: fixtureData.adoption.baseline_digest,
+      baseline_review: {
+        status: "reviewed",
+        baseline_digest: fixtureData.adoption.baseline_digest,
+        reviewed_paths: fixtureData.reserved_dirty_paths,
+      },
+      worker_ownership: {
+        worker_id: fixtureData.adoption.worker_id,
+        paths: fixtureData.reserved_dirty_paths,
+      },
+    };
+    const dispatch = admitImplementationDispatch(receipt, {
+      workerId: fixtureData.adoption.worker_id,
+      ownedPaths: fixtureData.reserved_dirty_paths,
+      adoption,
+    });
+    assert.equal(dispatch.status, "admitted");
+    assert.equal(dispatch.mutation_authorized, true);
+    assert.equal(dispatch.mutation_gate.unauthorized_overlap_count, 0);
+    assert.deepEqual(dispatch.assignment.adopted_paths, fixtureData.reserved_dirty_paths);
+
+    const adoptedReceipt = recordAdoptedAssignment(receipt, adoption);
+    assert.equal(adoptedReceipt.mutation_authorized, true);
+    const verified = verifyAdoptedAssignment(adoptedReceipt, {
+      ...adoption,
+      post_diff_proof: {
+        status: fixtureData.adoption.post_diff_status,
+        baseline_digest: fixtureData.adoption.baseline_digest,
+        preserved_paths: fixtureData.reserved_dirty_paths,
+        worker_id: fixtureData.adoption.worker_id,
+      },
+    });
+    assert.equal(verified.mutation_authorized, true);
+    assert.equal(verified.mutation_gate.adoption.post_diff_proof_valid, true);
+
+    const partialAdoption = {
+      ...adoption,
+      baseline_paths: fixtureData.reserved_dirty_paths,
+      adopted_paths: fixtureData.reserved_dirty_paths.filter((path) => !path.endsWith("src/main.rs")),
+      baseline_review: {
+        ...adoption.baseline_review,
+        reviewed_paths: fixtureData.reserved_dirty_paths.filter((path) => !path.endsWith("src/main.rs")),
+      },
+      worker_ownership: {
+        ...adoption.worker_ownership,
+        paths: fixtureData.reserved_dirty_paths.filter((path) => !path.endsWith("src/main.rs")),
+      },
+    };
+    const blocked = admitImplementationDispatch(receipt, {
+      workerId: fixtureData.adoption.worker_id,
+      ownedPaths: partialAdoption.adopted_paths,
+      adoption: partialAdoption,
+    });
+    assert.equal(blocked.admitted, false);
+    assert.match(blocked.mutation_gate.blockers.join("\n"), /dirty paths overlap.*unauthorized/i);
+  } finally {
+    removeFixture(fx);
+  }
+});
+
+test("w3Nalx worker report accepts arbitrary machine-key order and fixed=0", () => {
+  const report = readWorkerReport(dirtyAdoptionReportFixture);
+  assert.equal(report.status, "observed");
+  assert.equal(report.counts.machine_line, true);
+  assert.equal(report.counts.fixed, 0);
+  assert.equal(report.counts.withdrawn, 0);
+  assert.equal(report.counts.out_of_scope, 3);
+  assert.equal(report.counts.verification, "live");
+  assert.equal(report.counts.owned_paths, 0);
+  assert.equal(report.counts.reserved_preserved, true);
+  assert.equal(report.headings.valid, true);
+  assert.match(report.findings.top[0], /CLI dispatch/);
+  assert.equal(report.verification[0].status, "live");
+});
+
+test("malformed reports get one same-worker report-only correction, not a test or canary retry", () => {
+  const root = mkdtempSync(join(tmpdir(), "gjc-report-correction-"));
+  try {
+    const reportPath = join(root, "malformed.md");
+    writeFileSync(reportPath, [
+      "## Summary",
+      "bounded",
+      "## Findings",
+      "- malformed machine line",
+      "## Fixed",
+      "None.",
+      "## Withdrawn",
+      "None.",
+      "## Out of scope",
+      "None.",
+      "## Verification",
+      "- **Skip:** no product command",
+      "FIX_DONE fixed=0",
+      "",
+    ].join("\n"));
+    const malformed = readWorkerReport(reportPath);
+    assert.equal(malformed.status, "invalid");
+    let ledger = newReportCorrectionLedger({ workerId: "cli-parity" });
+    ledger = claimReportOnlyCorrection(ledger, { workerId: "cli-parity", report: malformed });
+    assert.equal(ledger.attempts.length, 1);
+    assert.equal(ledger.attempts[0].product_rerun, false);
+    assert.equal(ledger.attempts[0].test_retry, false);
+    assert.equal(ledger.attempts[0].canary_retry, false);
+    assert.equal(ledger.product_reruns, 0);
+    assert.equal(ledger.test_retries, 0);
+    assert.equal(ledger.canary_retries, 0);
+    assert.throws(
+      () => claimReportOnlyCorrection(ledger, { workerId: "cli-parity", report: malformed }),
+      /budget exhausted/,
+    );
+    assert.throws(
+      () => claimReportOnlyCorrection(newReportCorrectionLedger({ workerId: "cli-parity" }), {
+        workerId: "other-worker",
+        report: malformed,
+      }),
+      /same worker/,
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("repo-local .gjc state distinguishes fleet-created, pre-existing, and unexplained drift", () => {
+  const root = mkdtempSync(join(tmpdir(), "gjc-runtime-state-"));
+  try {
+    const baseline = snapshotRepoRuntime(root);
+    mkdirSync(join(root, ".gjc", "_session-run", "runtime"), { recursive: true });
+    writeFileSync(join(root, ".gjc", "_session-run", "runtime", "state.json"), "{\"owner\":\"fleet\"}\n");
+    const current = snapshotRepoRuntime(root);
+    const ledger = recordRunOwnedResource({}, {
+      type: "gjc-session",
+      id: "session-run",
+      path: ".gjc/_session-run",
+      ownerId: "cli-parity",
+    });
+    const fleet = classifyRepoRuntime({
+      baseline,
+      current,
+      runOwnedRoots: ledger.owned.map((resource) => resource.path),
+      ownerId: "cli-parity",
+    });
+    assert.equal(fleet.status, "fleet_created");
+    assert.equal(fleet.ownership_proven, true);
+    assert.equal(fleet.cleanup_allowed, true);
+    const cleaned = cleanupRunOwnedRuntime(root, fleet);
+    assert.equal(cleaned.status, "cleaned");
+    assert.equal(cleaned.baseline_restored, true);
+    assert.equal(existsSync(join(root, ".gjc")), false);
+
+    mkdirSync(join(root, ".gjc", "user"), { recursive: true });
+    writeFileSync(join(root, ".gjc", "user", "state.json"), "user\n");
+    const preExisting = snapshotRepoRuntime(root);
+    mkdirSync(join(root, ".gjc", "_session-run-2"), { recursive: true });
+    writeFileSync(join(root, ".gjc", "_session-run-2", "state.json"), "fleet\n");
+    const mixed = classifyRepoRuntime({
+      baseline: preExisting,
+      current: snapshotRepoRuntime(root),
+      runOwnedRoots: [".gjc/_session-run-2"],
+      ownerId: "cli-parity",
+    });
+    assert.equal(mixed.status, "pre_existing_preserved");
+    assert.equal(mixed.pre_existing_preserved, true);
+    assert.equal(mixed.cleanup_allowed, true);
+    const mixedCleaned = cleanupRunOwnedRuntime(root, mixed);
+    assert.equal(mixedCleaned.baseline_restored, true);
+    assert.equal(readFileSync(join(root, ".gjc", "user", "state.json"), "utf8"), "user\n");
+
+    mkdirSync(join(root, ".gjc", "unknown"), { recursive: true });
+    writeFileSync(join(root, ".gjc", "unknown", "state.json"), "unknown\n");
+    const unknown = classifyRepoRuntime({
+      baseline: preExisting,
+      current: snapshotRepoRuntime(root),
+      runOwnedRoots: [],
+    });
+    assert.equal(unknown.status, "pre_existing_preserved");
+    assert.equal(unknown.cleanup_allowed, false);
+    assert.equal(existsSync(join(root, ".gjc", "unknown", "state.json")), true);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("secure GJC launch prefers no-session and supports an external session directory", () => {
+  assert.deepEqual(buildGjcLaunch({
+    model: "openai-codex/gpt-5.6-luna",
+    thinking: "max",
+  }), [
+    "gjc",
+    "--model",
+    "openai-codex/gpt-5.6-luna",
+    "--thinking",
+    "max",
+    "--no-session",
+    "--no-mcp",
+  ]);
+  assert.deepEqual(buildGjcLaunch({
+    preset: "cxa-daily",
+    sessionDir: "/tmp/gjc-fleet-session",
+  }), [
+    "gjc",
+    "--mpreset",
+    "cxa-daily",
+    "--session-dir",
+    "/tmp/gjc-fleet-session",
+    "--no-mcp",
+  ]);
+  assert.deepEqual(validateExternalSessionDir("/tmp/gjc-fleet-session", "/tmp/repo"), {
+    valid: true,
+    reason: null,
+  });
+  assert.equal(validateExternalSessionDir("/tmp/repo/.gjc-session", "/tmp/repo").valid, false);
 });
 
 test("the actual symlink canary session is preserved as an end-to-end regression fixture", () => {
@@ -305,6 +560,32 @@ test("large path inventories become count/sample/artifact metadata only", () => 
   assert.equal(receipt.inventory.dirty_count, 1000);
   assert.equal("tracked_paths" in receipt.inventory, false);
   assert.equal("dirty_paths" in receipt.inventory, false);
+});
+
+test("ambiguous dirty intent becomes one blocked-awaiting-user question", () => {
+  const fx = fixture();
+  try {
+    const receipt = admit({
+      ...intakePayload(fx.repo, join(fx.root, "ambiguous-run")),
+      objective: "Handle the current repository carefully while preserving user work",
+      mode: "orchestrate",
+      inventory: {
+        status: "ready",
+        read_only: true,
+        repo_root: fx.repo,
+        tracked_paths: ["app/gui.ts", "cli/main.py"],
+        dirty_paths: ["app/gui.ts"],
+        top_level_paths: ["app", "cli", "skills"],
+      },
+    });
+    assert.equal(receipt.dirty_reservation.status, "awaiting_user");
+    const blocked = applyMutationGate(receipt, { mode: "mutation" });
+    assert.equal(blocked.state, "blocked-awaiting-user");
+    assert.equal(blocked.mutation_authorized, false);
+    assert.match(userFacingSummary(blocked), /preserve_no_touch|preserve_and_continue/);
+  } finally {
+    removeFixture(fx);
+  }
 });
 
 test("read-only analysis ignores dirty overlap while mutation fails closed", () => {
@@ -385,7 +666,15 @@ test("preflight admits exact model and configured preset without product command
     const modelReceipt = JSON.parse(model.stdout);
     assert.equal(modelReceipt.ok, true);
     assert.equal(modelReceipt.herdr.gjcKindSupported, false);
-    assert.deepEqual(modelReceipt.gjc.launch, ["gjc", "--model", "openai-codex/gpt-5.6-luna", "--thinking", "max"]);
+    assert.deepEqual(modelReceipt.gjc.launch, [
+      "gjc",
+      "--model",
+      "openai-codex/gpt-5.6-luna",
+      "--thinking",
+      "max",
+      "--no-session",
+      "--no-mcp",
+    ]);
     assert.equal(modelReceipt.budgets.receiptMaxBytes, BUDGETS.receiptMaxBytes);
 
     const preset = runPreflight(fx, ["--preset", "cxa-daily"]);
@@ -511,7 +800,30 @@ test("plain-node source, plugin, and installed symlink paths execute every contr
       assert.ok(Buffer.byteLength(budgetResult.stdout) > 0, `${label} budget was a no-op`);
 
       const report = join(runDir, "worker-result.md");
-      writeFileSync(report, "## Summary\nbounded\n\nFIX_DONE fixture FIXED=1 WITHDRAWN=0 OUTOFSCOPE=0 TYPECHECK=pass\n");
+      writeFileSync(report, [
+        "## Summary",
+        "bounded",
+        "",
+        "## Findings",
+        "- bounded finding",
+        "",
+        "## Fixed",
+        "One bounded fix.",
+        "",
+        "## Withdrawn",
+        "None.",
+        "",
+        "## Out of scope",
+        "None.",
+        "",
+        "## Verification",
+        "| check | status | command | evidence | limitation |",
+        "| --- | --- | --- | --- | --- |",
+        "| focused | live | fixture check | exit 0 | |",
+        "",
+        "FIX_DONE fixture FIXED=1 WITHDRAWN=0 OUTOFSCOPE=0 TYPECHECK=pass",
+        "",
+      ].join("\n"));
       const receiptResult = spawnSync(process.execPath, [join(aliasScripts, "receipt.mjs"), report], {
         encoding: "utf8",
       });
@@ -675,7 +987,7 @@ test("large worker reports return only summary, top findings, counts, statuses, 
   const report = join(root, "worker-result.md");
   const longSummary = "summary ".repeat(1000);
   const findings = Array.from({ length: 12 }, (_, index) => `- finding ${index}: bounded evidence` ).join("\n");
-  writeFileSync(report, `## Summary\n${longSummary}\n## Findings\n${findings}\n## Verification\n| check | status | command or surface | evidence | limitation |\n| --- | --- | --- | --- | --- |\n| focused | live | cargo test -p app | exit 0, log path | |\n| global | gated | worker-owned | pending | not run here |\n\nFIX_DONE worker FIXED=2 WITHDRAWN=1 OUTOFSCOPE=3 TYPECHECK=pass\n${"SECRET_EVIDENCE ".repeat(70000)}`);
+  writeFileSync(report, `## Summary\n${longSummary}\n## Findings\n${findings}\n## Fixed\n- two bounded fixes\n## Withdrawn\n- one bounded withdrawal\n## Out of scope\n- three bounded items\n## Verification\n| check | status | command or surface | evidence | limitation |\n| --- | --- | --- | --- | --- |\n| focused | live | cargo test -p app | exit 0, log path | |\n| global | gated | worker-owned | pending | not run here |\n\nFIX_DONE worker FIXED=2 WITHDRAWN=1 OUTOFSCOPE=3 TYPECHECK=pass\n${"SECRET_EVIDENCE ".repeat(70000)}`);
   const compact = readWorkerReport(report);
   assert.equal(receiptHasOnlyBoundedWorkerFields(compact), true);
   assert.ok(compact.report.bytes > 1_000_000);

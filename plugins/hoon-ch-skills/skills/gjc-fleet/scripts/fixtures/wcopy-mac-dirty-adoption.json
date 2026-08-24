@@ -1,0 +1,87 @@
+{
+  "name": "wcopy-mac-dirty-adoption-w3Nalx",
+  "source_run": {
+    "run_dir": "/var/folders/bd/dq0gbrc917g7x6vd531rxcwc0000gn/T/gjc-fleet.w3Nalx",
+    "final_receipt_status": "incomplete",
+    "target_repo": "/Users/hoon-ch/repos/wcopy-mac",
+    "initial_dirty_count": 6,
+    "final_dirty_count": 7,
+    "initial_dirty_artifact_sha256": "82a03ba3dc20bd3377cbd6aa6f9fda7a14fee99f26c302da26bc5476a5220408",
+    "final_status_sha256": "e031f16ac66ea3f101c2dadc42181b2f4b06d04197258080ccb0634320605cbb",
+    "created_pane": "w1P:pA",
+    "pane_retired": true,
+    "worker_session_id": "01a032c5-8eb5-703a-841d-7dda53eca6b2",
+    "worker_session_state": "completed",
+    "worker_report_machine_line": "FIX_DONE fixed=0 withdrawn=0 out_of_scope=3 verification=live owned_paths=0 reserved_preserved=true",
+    "observed_parser_failure": "missing parseable machine line and counts",
+    "observed_runtime_drift": ".gjc/"
+  },
+  "run_artifacts": {
+    "canary": {
+      "status": "passed",
+      "attempt": 1,
+      "herdr_workspace": "w1P",
+      "gjc_version": "0.15.0",
+      "product_command": false,
+      "product_tree_read": false,
+      "sha256": "24600b509904a73cfcd222aa60c9fc40400c3d6d4cf8412a224983a8ca16c199"
+    },
+    "worker_receipt_before_fix": {
+      "status": "invalid",
+      "fixed": 0,
+      "withdrawn": 0,
+      "out_of_scope": null,
+      "machine_line": false,
+      "verification_rows": 0
+    },
+    "user_work": {
+      "status": "reserved",
+      "reserved_count": 6,
+      "assigned_count": 0,
+      "artifact_sha256": "82a03ba3dc20bd3377cbd6aa6f9fda7a14fee99f26c302da26bc5476a5220408"
+    },
+    "test_ledger": {
+      "focused_attempts": 1,
+      "owner_reverify_attempts": 1,
+      "global_attempts": 0,
+      "repeated_fingerprint_rejected": false
+    },
+    "resources": {
+      "created": ["w1P:pA"],
+      "retired": ["w1P:pA"],
+      "preserved": ["w1P:p3", "w1P:p9"]
+    }
+  },
+  "reserved_dirty_paths": [
+    "Cargo.lock",
+    "rust/wcopy-cli/Cargo.toml",
+    "rust/wcopy-cli/src/cli.rs",
+    "rust/wcopy-cli/src/main.rs",
+    "rust/wcopy-cli/src/output.rs",
+    "rust/wcopy-core/src/lib.rs"
+  ],
+  "adoption": {
+    "mode": "preserve_and_continue",
+    "baseline_digest": "82a03ba3dc20bd3377cbd6aa6f9fda7a14fee99f26c302da26bc5476a5220408",
+    "worker_id": "cli-parity",
+    "feature_targets": [
+      "Cargo.lock",
+      "rust/wcopy-cli/**",
+      "rust/wcopy-core/**"
+    ],
+    "post_diff_status": "preserved"
+  },
+  "expected_invariants": [
+    "six-dirty-paths-can-be-adopted-after-read-only-baseline-review",
+    "implementation-dispatch-is-admitted-only-with-exact-worker-ownership",
+    "fixed-zero-is-a-valid-machine-count",
+    "machine-line-key-order-is-insensitive",
+    "malformed-report-allows-one-report-only-correction-on-the-same-worker",
+    "report-correction-does-not-consume-test-or-canary-budget",
+    "fleet-created-gjc-runtime-state-is-run-owned-and-cleanable",
+    "pre-existing-gjc-runtime-state-is-preserved",
+    "unauthorized-dirty-overlap-remains-blocked",
+    "context-thin-budget-and-canary-attempt-one-remain-enforced",
+    "eli5-and-paseo-remain-unrelated-user-work"
+  ]
+}

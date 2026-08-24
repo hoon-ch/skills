@@ -74,7 +74,8 @@ Rules:
 
 - Keep `skills/` as the only source of published skill content
 - Keep `plugins/hoon-ch-skills/skills` as a generated real directory
-- Rebuild the mirror with `python3 scripts/sync_codex_plugin_skills.py`
+- Synchronize the mirror with `python3 scripts/sync_codex_plugin_skills.py`; tracked generated
+  files are refreshed while target-only untracked user work is preserved
 - Do not manually edit copied skill folders in `plugins/hoon-ch-skills/skills`
 - Keep `plugins/hoon-ch-skills/.codex-plugin/plugin.json` pointing at `./skills/`
 - Validate Codex plugin metadata with `scripts/validate_repo.py`

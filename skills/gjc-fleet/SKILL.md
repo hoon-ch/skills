@@ -39,6 +39,7 @@ All values live in `scripts/budget.mjs`; prose must not introduce a second set o
 | Worker focused test | one claim |
 | Owner revalidation after a fix | one claim |
 | Global gate | one claim |
+| Report-only correction | one claim on the same worker; no product/test/canary retry |
 | Exact test command fingerprint | never repeat within a run |
 
 Intake records counts, a bounded path sample, and an external NUL-safe artifact digest. It never
@@ -105,7 +106,8 @@ exit is zero; it stops admission before any resource is created.
 - Write inventory paths/status to external NUL-safe artifacts and return only counts, samples,
   and SHA-256 digests. No full path or hash arrays enter `intake.json`.
 - Derive acceptance criteria and a proposed boundary from metadata. They are not mutation
-  approval. Keep dirty paths reserved and assigned count zero.
+  approval. Classify dirty work as `preserve_no_touch` or `preserve_and_continue`; keep it
+  reserved and assigned count zero until a gate records an exact adoption.
 - Validate the serialized receipt before any Herdr resource is created. A receipt over 16 KiB
   is a blocked compact receipt.
 
@@ -122,6 +124,9 @@ exit is zero; it stops admission before any resource is created.
 ### 3. Preflight, then create resources by returned IDs
 
 Require `HERDR_ENV=1`. Read `herdr --skill` and installed help; the binary is syntax authority.
+Require GJC's `--session-dir`, `--no-session`, and `--no-mcp` flags. Launch ephemeral workers
+with `--no-session --no-mcp`, or point `--session-dir` at an external `RUN_DIR` path; never let
+session storage default to the target repository.
 Pass the verified absolute cwd to every `tab create`, `pane split`, and `worktree create`, use
 `--no-focus`, parse every returned opaque ID, and record it in the external ledger immediately.
 When parsing `herdr agent list`, ignore the outer response `id` (for example
@@ -160,6 +165,12 @@ the verified artifact.
 
 ### 5. Dispatch worker work
 
+Snapshot repo-local `.gjc/` before launch. For `preserve_no_touch`, any dirty overlap remains
+unauthorized. For `preserve_and_continue`, dispatch a read-only baseline review first, then
+record the exact adopted paths, baseline digest, and worker ownership in the assignment. The
+implementation worker may extend those paths without reset, restore, stash, delete, or broad
+copy. Completion must return a post-diff preservation proof for the adopted paths.
+
 Give each worker an external brief and exact ownership set. Workers may read source files inside
 their task, but they write only assigned product files and external evidence. They must return a
 report with:
@@ -168,11 +179,13 @@ report with:
 - `## Findings`: ranked bullets; the parser returns only the top 8;
 - `## Fixed`, `## Withdrawn`, and `## Out of scope` with real counts;
 - `## Verification` with `live`, `gated`, or `skip` and evidence references;
-- one `FIX_DONE ...` machine line.
+- `FIX_DONE fixed=<n> withdrawn=<n> out_of_scope=<n> verification=<live|gated|skip> owned_paths=<n> reserved_preserved=true`.
 
 Full logs, patches, source excerpts, and capability tables remain external artifacts. The
 orchestrator invokes `scripts/receipt.mjs` and receives counts/statuses/digest, never the full
-report. A missing or malformed report is unverified, not a pass.
+report. Human headings and machine fields are validated. A missing or malformed report is
+unverified, not a pass; the same worker may receive one report-only correction, which cannot
+rerun product work, tests, or the canary.
 
 ### 6. Enforce test budget before every test command
 
@@ -201,15 +214,19 @@ reconcile the compact report, artifact digest, owned-path metadata, and worker s
 
 ### 8. Verify and clean up narrowly
 
-The control plane verifies report counts, worker-owned path metadata, reserved dirty counts,
-resource ownership, and required gate statuses. It does not open product diffs or run a global
-build/test. Route regressions to the owning worker or a dedicated gate worker. Stop only panes,
-tabs, worktrees, and PIDs created by this run; never close pre-existing `w1P` resources, kill
+The control plane verifies report counts, worker-owned path metadata, dirty-adoption baseline
+and post-diff proofs, reserved dirty counts, resource ownership, and required gate statuses. It
+does not open product diffs or run a global build/test. Route regressions to the owning worker
+or a dedicated gate worker. Stop only panes, tabs, worktrees, and PIDs created by this run; never close pre-existing `w1P` resources, kill
 Herdr globally, reset/restore/stash user work, or delete a worktree with `--force`.
 
-Write one bounded `gjc-fleet-receipt/v2` artifact outside the product tree. `complete` requires
-all requested worker outcomes and required gates, no unowned drift, preserved user work, and
-retired resources. Otherwise use `incomplete` or `blocked` and retain the relevant evidence.
+Classify `.gjc/**` separately from product drift. Clean only run-owned paths proven by the
+resource ledger; preserve pre-existing, user-modified, and unexplained state. Write one bounded
+`gjc-fleet-receipt/v2` artifact outside the product tree. `complete` requires all requested
+worker outcomes and required gates, no unauthorized overlap or unowned drift, preserved user
+work, post-diff adoption proof where applicable, and retired resources. An ambiguous dirty mode
+is `blocked-awaiting-user` with one natural-language question. Otherwise use `incomplete` or
+`blocked` and retain the relevant evidence.
 
 ## Failure Fallback
 
@@ -224,11 +241,14 @@ retired resources. Otherwise use `incomplete` or `blocked` and retain the releva
   exit, worker status, pane transition, and artifact bytes/digest; do not retry.
 - **Second canary attempt:** treat it as a hard failure even if the first command exited zero.
 - **Worker report missing/oversized/malformed:** mark the unit unverified; do not read its full
-  log in the parent context and do not retry the same order blindly.
+  log in the parent context. For a malformed report only, allow exactly one report-only
+  correction on the same worker; never rerun the product order, a test, or the canary.
 - **Repeated test fingerprint or exhausted phase:** stop that test path; send only a causal,
   newly fingerprinted revalidation after an owner fix.
-- **Dirty overlap, ownership collision, or unknown cleanup:** preserve both sides and mark the
-  receipt blocked/incomplete. Never clean by reset, restore, stash, or broad copy.
+- **Unauthorized dirty overlap, ownership collision, or unknown cleanup:** preserve both sides and
+  mark the receipt blocked/incomplete. An ambiguous dirty mode is
+  `blocked-awaiting-user` with one choice question. Never clean by reset, restore, stash, delete,
+  or broad copy.
 
 ## Examples
 

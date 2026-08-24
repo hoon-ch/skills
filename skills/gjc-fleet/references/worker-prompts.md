@@ -59,16 +59,23 @@ One concise outcome, no more than 2 KiB.
 ```
 
 Use only `live`, `gated`, or `skip` for verification. `skip` needs a concrete limitation and is
-never a pass. End with a real machine line:
+never a pass. End with one real machine line; key order is intentionally irrelevant and zero is
+a valid count:
 
 ```text
-FIX_DONE <id> FIXED=<n> WITHDRAWN=<n> OUTOFSCOPE=<n> TYPECHECK=<pass|fail|skip>
+FIX_DONE fixed=<n> withdrawn=<n> out_of_scope=<n> verification=<live|gated|skip> owned_paths=<n> reserved_preserved=true
 ```
 
 The control plane invokes `scripts/receipt.mjs`. It receives only summary (<=2 KiB), top eight
 findings, counts, verification statuses, report byte count, and one external SHA-256 digest.
-It never loads the full report into its conversation context. A missing machine line, missing
-counts, malformed verification, placeholder count, or missing report is unverified.
+It never loads the full report into its conversation context. The parser validates all six human
+headings plus the machine line. A missing heading, missing count, malformed verification,
+placeholder count, or missing report is unverified.
+
+If the report is malformed, the same worker may receive exactly one report-only correction
+request pointing to the existing report path. The correction may edit only that report and must
+not rerun product work, tests, or the canary; it uses the separate
+`reportCorrectionMaxAttempts: 1` budget.
 
 ## Analysis worker
 

@@ -25,6 +25,12 @@ import {
   uniqueSorted,
 } from "./budget.mjs";
 import { compactOverflowReceipt, digestText } from "./receipt.mjs";
+import {
+  DIRTY_RESERVATION_MODES,
+  compactDirtyAdoption,
+  inferDirtyReservationMode,
+  validateDirtyAdoption,
+} from "./dirty-adoption.mjs";
 
 export const INVOCATION = "/skill:gjc-fleet";
 export const INTAKE_SCHEMA = "gjc-fleet-intake/v3";
@@ -596,6 +602,27 @@ function materialAmbiguities(objective, target, inventory) {
   return ambiguities;
 }
 
+function dirtyReservationFor(objective, inventory, input = {}) {
+  const dirtyPaths = Array.isArray(inventory[INTERNAL_DIRTY_PATHS])
+    ? inventory[INTERNAL_DIRTY_PATHS]
+    : inventory.dirty_sample ?? [];
+  const explicitMode = input.dirty_mode ?? input.dirty_reservation_mode ?? null;
+  const featureTargets = Array.isArray(input.feature_targets) ? input.feature_targets : [];
+  const inferred = inferDirtyReservationMode(objective, {
+    dirtyPaths,
+    featureTargets,
+    explicitMode,
+  });
+  return {
+    status: inferred.status,
+    mode: inferred.mode,
+    confidence: inferred.confidence,
+    target_match: inferred.target_match === true,
+    question: inferred.question,
+    reserved_paths: compactSample(dirtyPaths),
+  };
+}
+
 function contextReceipt(input) {
   return {
     preserved: true,
@@ -690,12 +717,21 @@ export function admit(rawInput = {}) {
   }
   const acceptance = deriveAcceptanceCriteria(objective.text, inventory);
   const boundary = deriveMutationBoundary(objective.text, inventory);
+  const dirtyReservation = dirtyReservationFor(objective.text, inventory, input);
   const ambiguities = materialAmbiguities(objective.text, target, inventory);
+  if (dirtyReservation.status === "awaiting_user" && dirtyReservation.question) {
+    ambiguities.push({
+      kind: "dirty_reservation",
+      material: true,
+      question: dirtyReservation.question,
+    });
+  }
   const requestedMode = input.mode === "analysis" || input.analysis_only === true || isAnalysisIntent(objective.text)
     ? "analysis"
     : "orchestrate";
+  const awaitingUser = requestedMode === "orchestrate" && dirtyReservation.status === "awaiting_user";
   const receipt = {
-    ...baseReceipt("OBJECTIVE_ADMITTED", input, "ready"),
+    ...baseReceipt("OBJECTIVE_ADMITTED", input, awaitingUser ? "blocked-awaiting-user" : "ready"),
     objective: objective.text,
     objective_source: objective.source,
     request_mode: requestedMode,
@@ -725,10 +761,10 @@ export function admit(rawInput = {}) {
       dirty_artifact: inventory.artifacts?.dirty ?? null,
     },
     mutation_gate: {
-      status: "pending",
-      evaluated: false,
+      status: awaitingUser ? "blocked-awaiting-user" : "pending",
+      evaluated: awaitingUser,
       required_before_product_mutation: true,
-      blockers: [],
+      blockers: awaitingUser ? ["dirty reservation mode requires one user choice"] : [],
     },
     user_work: {
       status: "reserved",
@@ -737,10 +773,16 @@ export function admit(rawInput = {}) {
       reserved_sample: inventory.dirty_sample,
       reserved_artifact: inventory.artifacts?.dirty ?? null,
       assigned_count: 0,
+      dirty_reservation_mode: dirtyReservation.mode,
+      dirty_reservation_status: dirtyReservation.status,
     },
+    dirty_reservation: dirtyReservation,
     required_input: [],
-    waiting_for: ["PREFLIGHTED or read-only analysis"],
+    waiting_for: awaitingUser
+      ? [dirtyReservation.question]
+      : ["PREFLIGHTED or read-only analysis"],
   };
+  if (awaitingUser) receipt.state_machine.allowed_next = [];
   return compactReceipt(receipt);
 }
 
@@ -847,6 +889,49 @@ export function reserveDirtyPaths(inventoryOrReceipt = {}) {
   };
 }
 
+function dirtyReservationMode(source, options) {
+  return options.dirty_mode ??
+    options.dirtyMode ??
+    source.user_work?.dirty_reservation_mode ??
+    source.dirty_reservation?.mode ??
+    null;
+}
+
+function adoptionFor(source, inventory, evidence, options) {
+  const candidate = options.adoption ??
+    options.dirty_adoption ??
+    options.adopted_assignment ??
+    source.user_work?.dirty_adoption ??
+    source.dirty_adoption ??
+    {};
+  const adoption = isRecord(candidate) ? { ...candidate } : {};
+  adoption.mode = adoption.mode ?? dirtyReservationMode(source, options);
+  adoption.baseline_paths = adoption.baseline_paths ?? evidence.paths;
+  adoption.expected_baseline_digest = adoption.expected_baseline_digest ??
+    inventory.artifacts?.dirty?.sha256 ??
+    null;
+  adoption.baseline_digest = adoption.baseline_digest ?? options.baseline_digest ?? null;
+  adoption.worker_id = adoption.worker_id ?? options.worker_id ?? null;
+  adoption.worker_ownership = adoption.worker_ownership ??
+    options.worker_ownership ??
+    (options.worker_id || options.owned_paths ? {
+      worker_id: options.worker_id,
+      paths: options.owned_paths ?? [],
+    } : null);
+  adoption.baseline_review = adoption.baseline_review ??
+    options.baseline_review ??
+    (options.baseline_reviewed === true ? {
+      status: "reviewed",
+      baseline_digest: adoption.baseline_digest,
+      reviewed_paths: options.reviewed_paths ?? adoption.adopted_paths ?? [],
+    } : null);
+  adoption.post_diff_proof = adoption.post_diff_proof ??
+    options.post_diff_proof ??
+    null;
+  adoption.post_diff_preserved = adoption.post_diff_preserved ?? options.post_diff_preserved;
+  return adoption;
+}
+
 export function evaluateMutationGate(receipt, options = {}) {
   const source = isRecord(receipt) ? receipt : {};
   const mode = options.mode ?? source.request_mode ?? "mutation";
@@ -860,6 +945,18 @@ export function evaluateMutationGate(receipt, options = {}) {
     !deny.some((pattern) => matchesPattern(path, pattern)));
   const overlapUnknown = !evidence.known && Number(inventory.dirty_count ?? 0) > 0;
   const reservedCount = Number.isFinite(inventory.dirty_count) ? inventory.dirty_count : evidence.paths.length;
+  const reservationMode = dirtyReservationMode(source, options);
+  const stage = options.stage ?? "dispatch";
+  const adoption = adoptionFor(source, inventory, evidence, options);
+  const adoptionCandidate = adoption.adopted_paths ?? adoption.paths ?? [];
+  const hasAdoptionCandidate = Array.isArray(adoptionCandidate) && adoptionCandidate.length > 0;
+  const adoptionValidation = validateDirtyAdoption(adoption, {
+    requirePostDiff: stage === "completion" || options.require_post_diff === true,
+  });
+  const adoptedPaths = adoptionValidation.adopted_paths;
+  const affectedDirtyPaths = uniqueSorted([...overlap, ...adoptedPaths]);
+  const adoptedSet = new Set(adoptedPaths);
+  const unauthorizedOverlap = affectedDirtyPaths.filter((path) => !adoptedSet.has(path));
   if (mode === "analysis" || options.read_only === true) {
     return {
       status: "not_required",
@@ -870,6 +967,13 @@ export function evaluateMutationGate(receipt, options = {}) {
       reserved_dirty_sample: compactSample(evidence.paths),
       dirty_overlap_count: overlap.length,
       dirty_overlap: compactSample(overlap),
+      dirty_mode: reservationMode,
+      authorized_overlap_count: 0,
+      unauthorized_overlap_count: overlap.length,
+      adoption: {
+        ...compactDirtyAdoption(adoption),
+        post_diff_proof_valid: adoptionValidation.post_diff_proof_valid,
+      },
       note: "Read-only analysis is admitted without mutation approval.",
     };
   }
@@ -877,13 +981,53 @@ export function evaluateMutationGate(receipt, options = {}) {
   const ambiguities = Array.isArray(options.material_ambiguities)
     ? options.material_ambiguities
     : Array.isArray(source.material_ambiguities) ? source.material_ambiguities : [];
-  const material = ambiguities.filter((item) => !isRecord(item) || item.material !== false);
+  const material = ambiguities.filter((item) =>
+    (!isRecord(item) || item.material !== false) &&
+    !(item?.kind === "dirty_reservation" && DIRTY_RESERVATION_MODES.includes(reservationMode)));
+  if (!DIRTY_RESERVATION_MODES.includes(reservationMode) && (overlap.length > 0 || overlapUnknown)) {
+    return {
+      status: "blocked-awaiting-user",
+      admitted: false,
+      mode: "mutation",
+      blockers: ["dirty reservation mode is ambiguous; one natural-language user choice is required"],
+      question: source.dirty_reservation?.question ?? "Choose preserve_no_touch or preserve_and_continue for the overlapping dirty work.",
+      reserved_dirty_count: reservedCount,
+      reserved_dirty_sample: compactSample(evidence.paths),
+      dirty_overlap_count: overlap.length,
+      dirty_overlap: compactSample(overlap),
+      dirty_overlap_unknown: overlapUnknown,
+      dirty_mode: null,
+      authorized_overlap_count: 0,
+      unauthorized_overlap_count: affectedDirtyPaths.length,
+      adoption: {
+        ...compactDirtyAdoption(adoption),
+        post_diff_proof_valid: adoptionValidation.post_diff_proof_valid,
+      },
+      material_ambiguities: material,
+    };
+  }
   const blockers = [];
   if (material.length > 0) blockers.push("unresolved material ambiguity remains before product mutation");
   if (overlapUnknown) blockers.push("dirty path artifact is unavailable; boundary disjointness cannot be proven");
-  if (overlap.length > 0) blockers.push(`dirty paths overlap the proposed mutation boundary (${overlap.length} observed)`);
+  if (reservationMode === "preserve_no_touch" && overlap.length > 0) {
+    blockers.push(`dirty paths overlap the proposed mutation boundary and are unauthorized (${overlap.length} observed)`);
+  }
+  if (reservationMode === "preserve_and_continue" && affectedDirtyPaths.length > 0) {
+    if (!adoptionValidation.valid || unauthorizedOverlap.length > 0) {
+      const details = adoptionValidation.errors.length > 0
+        ? `: ${adoptionValidation.errors.join("; ")}`
+        : "";
+      blockers.push(`dirty paths overlap is unauthorized until exact adoption is recorded${details}`);
+    }
+  }
+  if (reservationMode === "preserve_no_touch" && hasAdoptionCandidate) {
+    blockers.push("preserve_no_touch cannot record an adopted assignment");
+  }
   if (inventory.status !== "ready") blockers.push("bounded read-only repository metadata inventory is incomplete");
-  if (allow.length === 0) blockers.push("the orchestrator has not derived a non-empty mutation boundary");
+  if (allow.length === 0 && affectedDirtyPaths.length === 0) {
+    blockers.push("the orchestrator has not derived a non-empty mutation boundary");
+  }
+  const authorizedOverlap = affectedDirtyPaths.filter((path) => adoptedSet.has(path));
 
   return {
     status: blockers.length > 0 ? "blocked" : "passed",
@@ -895,6 +1039,17 @@ export function evaluateMutationGate(receipt, options = {}) {
     dirty_overlap_count: overlap.length,
     dirty_overlap: compactSample(overlap),
     dirty_overlap_unknown: overlapUnknown,
+    dirty_mode: reservationMode,
+    authorized_overlap_count: authorizedOverlap.length,
+    authorized_overlap: compactSample(authorizedOverlap),
+    unauthorized_overlap_count: unauthorizedOverlap.length,
+    unauthorized_overlap: compactSample(unauthorizedOverlap),
+    adoption: {
+      ...compactDirtyAdoption(adoption),
+      post_diff_proof_valid: adoptionValidation.post_diff_proof_valid,
+    },
+    adoption_errors: adoptionValidation.errors,
+    stage,
     material_ambiguities: material,
   };
 }
@@ -903,15 +1058,92 @@ export const checkMutationGate = evaluateMutationGate;
 
 export function applyMutationGate(receipt, options = {}) {
   const gate = evaluateMutationGate(receipt, options);
-  return {
+  const next = {
     ...receipt,
     mutation_authorized: gate.mode === "mutation" && gate.admitted,
     mutation_gate: { ...gate, evaluated: true, required_before_product_mutation: true },
+  };
+  if (gate.adoption?.adopted_count > 0) {
+    next.user_work = {
+      ...(isRecord(receipt?.user_work) ? receipt.user_work : {}),
+      status: gate.admitted ? "adopted" : "reserved",
+      assigned_count: gate.admitted ? gate.adoption.adopted_count : 0,
+      dirty_adoption: gate.adoption,
+    };
+  }
+  if (gate.status === "blocked-awaiting-user") {
+    next.state = "blocked-awaiting-user";
+    next.waiting_for = [boundedUtf8(gate.question, BUDGETS.receiptFieldMaxBytes)];
+  }
+  return next;
+}
+
+export function recordAdoptedAssignment(receipt, adoption = {}) {
+  return applyMutationGate(receipt, {
+    mode: "mutation",
+    stage: "dispatch",
+    adoption,
+  });
+}
+
+export function verifyAdoptedAssignment(receipt, adoption = {}) {
+  return applyMutationGate(receipt, {
+    mode: "mutation",
+    stage: "completion",
+    adoption,
+  });
+}
+
+export function admitImplementationDispatch(receipt, {
+  workerId = null,
+  ownedPaths = [],
+  adoption = {},
+} = {}) {
+  const candidate = isRecord(adoption) ? { ...adoption } : {};
+  candidate.worker_id = candidate.worker_id ?? workerId;
+  candidate.worker_ownership = candidate.worker_ownership ?? {
+    worker_id: workerId,
+    paths: ownedPaths,
+  };
+  const gate = evaluateMutationGate(receipt, {
+    mode: "mutation",
+    stage: "dispatch",
+    adoption: candidate,
+    worker_id: workerId,
+    owned_paths: ownedPaths,
+  });
+  if (!gate.admitted) {
+    return {
+      status: gate.status,
+      admitted: false,
+      mutation_authorized: false,
+      mutation_gate: gate,
+      assignment: null,
+    };
+  }
+  return {
+    status: "admitted",
+    phase: "DISPATCHING",
+    admitted: true,
+    mutation_authorized: true,
+    mutation_gate: gate,
+    assignment: {
+      worker_id: boundedUtf8(workerId ?? gate.adoption.worker_id ?? "", 128),
+      owned_paths: compactSample(ownedPaths.length > 0 ? ownedPaths : gate.adoption.adopted_paths),
+      adopted_paths: gate.adoption.adopted_paths,
+      dirty_mode: gate.dirty_mode,
+      baseline_digest: gate.adoption.baseline_digest,
+      post_diff_required: gate.dirty_mode === "preserve_and_continue",
+    },
   };
 }
 
 export function userFacingSummary(receipt) {
   if (!isRecord(receipt) || receipt.phase === "ROLE_ADMITTED") return "Fleet 역할이 준비되었습니다. 원하는 결과를 자연어로 말해 주세요.";
+  if (receipt.state === "blocked-awaiting-user" || receipt.dirty_reservation?.status === "awaiting_user") {
+    return receipt.dirty_reservation?.question ??
+      "기존 미커밋 작업과 목표의 관계를 preserve_no_touch 또는 preserve_and_continue 중 하나로 자연어로 확인해 주세요.";
+  }
   if (receipt.state === "blocked") return "대상을 확인할 수 없습니다. 현재 작업공간의 저장소 경로나 분석할 저장소를 자연어로 알려 주세요.";
   const mode = receipt.request_mode === "analysis"
     ? "먼저 worker 한 명이 읽기 전용으로 조사하고 결과를 간단히 정리하겠습니다."
@@ -1053,7 +1285,7 @@ function main() {
     receipt = compactOverflowReceipt({ schema: INTAKE_SCHEMA, reason: "serialized intake receipt exceeded the hard cap", inputBytes: byteLength(output) });
   }
   console.log(JSON.stringify(receipt, null, 2));
-  if (receipt.state === "blocked") process.exitCode = 2;
+  if (receipt.state === "blocked" || receipt.state === "blocked-awaiting-user") process.exitCode = 2;
 }
 
 function isDirectExecution() {

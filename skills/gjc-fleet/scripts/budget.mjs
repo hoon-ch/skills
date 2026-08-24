@@ -52,6 +52,7 @@ export const BUDGETS = Object.freeze({
   workerFindingMaxCount: 8,
   workerFindingMaxBytes: 512,
   workerVerificationMaxCount: 8,
+  reportCorrectionMaxAttempts: 1,
   pathSampleMaxCount: 24,
   pathSampleItemMaxBytes: 256,
   topLevelSampleMaxCount: 32,

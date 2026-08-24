@@ -33,7 +33,7 @@ the same skills through `skills.sh`, the Claude manifest, and a Codex plugin.
 | Add a new skill scaffold | `scripts/create_skill.py` | Use `--with agents,references,scripts` when the workflow needs them. |
 | Validate publishability | `scripts/validate_repo.py` | Checks skill sections, marketplace manifests, and mirror parity. |
 | Update Codex plugin package | `plugins/hoon-ch-skills/.codex-plugin/plugin.json` | Keep skill content out of this package except for the generated mirror. |
-| Refresh plugin skill content | `scripts/sync_codex_plugin_skills.py` | Recreates `plugins/hoon-ch-skills/skills` from `skills/`. |
+| Refresh plugin skill content | `scripts/sync_codex_plugin_skills.py` | Synchronizes tracked generated files from `skills/` while preserving target-only untracked user work. |
 | Explain repo policy | `spec/repository-layout.md`, `spec/quality-bar.md` | Treat current scripts as source of truth if older docs disagree. |
 
 ## Code Map
@@ -42,7 +42,7 @@ the same skills through `skills.sh`, the Claude manifest, and a Codex plugin.
 | --- | --- | --- | --- |
 | `main` | function | `scripts/validate_repo.py` | Repository validation gate. |
 | `validate_codex_plugin_skill_mirror` | function | `scripts/validate_repo.py` | Enforces real-directory mirror parity. |
-| `main` | function | `scripts/sync_codex_plugin_skills.py` | Rebuilds the Codex plugin skill mirror. |
+| `main` | function | `scripts/sync_codex_plugin_skills.py` | Synchronizes the Codex plugin skill mirror without deleting untracked user work. |
 | `render_skill` | function | `scripts/create_skill.py` | Generates the default `SKILL.md` scaffold. |
 | `REQUIRED_SKILL_SECTIONS` | constant | `scripts/validate_repo.py` | Required headings for every published skill. |
 

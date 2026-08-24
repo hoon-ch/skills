@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { BUDGETS, byteLength, jsonBytes } from "./budget.mjs";
 import { compactCanaryDiagnostic } from "./canary.mjs";
 import { STATES, TRANSITIONS, validateObjectiveReceipt } from "./intake.mjs";
+import { buildGjcLaunch } from "./launch.mjs";
 
 const PRESET_MARKER = "GJC_FLEET_PRESET_OK";
 const ALLOWED_THINKING = new Set(["minimal", "low", "medium", "high", "xhigh", "max"]);
@@ -265,7 +266,7 @@ function checkGjc(gjc, model, preset, thinking) {
   const help = requireOutput(
     "gjc --help",
     run(gjc, ["--help"]),
-    ["--model", "--mpreset", "--thinking", "--list-models", "--no-session", "--no-tools", "--mode"],
+    ["--model", "--mpreset", "--thinking", "--list-models", "--session-dir", "--no-session", "--no-mcp", "--no-tools", "--mode"],
   );
   const versionNumber = versionOf(version, "gjc");
   if (versionNumber === "unknown") fail("gjc --version did not expose a semantic version");
@@ -294,9 +295,10 @@ function checkGjc(gjc, model, preset, thinking) {
     }
     return {
       version: versionNumber,
-      launch: ["gjc", "--model", model, ...(thinking ? ["--thinking", thinking] : [])],
+      launch: buildGjcLaunch({ model, thinking, noSession: true, noMcp: true }),
       model,
       thinking: thinking ?? null,
+      session_policy: "no-session; no repo-local GJC session state",
     };
   }
 
@@ -307,6 +309,7 @@ function checkGjc(gjc, model, preset, thinking) {
     "--mpreset",
     preset,
     "--no-session",
+    "--no-mcp",
     "--no-tools",
     "--mode",
     "text",
@@ -317,9 +320,10 @@ function checkGjc(gjc, model, preset, thinking) {
   }
   return {
     version: versionNumber,
-    launch: ["gjc", "--mpreset", preset],
+    launch: buildGjcLaunch({ preset, noSession: true, noMcp: true }),
     preset,
     thinking: null,
+    session_policy: "no-session; no repo-local GJC session state",
   };
 }
 

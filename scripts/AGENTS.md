@@ -9,7 +9,7 @@ helpers. Runtime helpers belong under `skills/<name>/scripts/`.
 | --- | --- | --- |
 | Create a skill scaffold | `create_skill.py` | Writes under `skills/`; keeps template files out of installable paths. |
 | Validate repo state | `validate_repo.py` | Checks skill metadata, required sections, bundle completeness, plugin metadata, and mirror parity. |
-| Refresh Codex plugin mirror | `sync_codex_plugin_skills.py` | Recreates `plugins/hoon-ch-skills/skills` from `skills/`. |
+| Refresh Codex plugin mirror | `sync_codex_plugin_skills.py` | Synchronizes tracked generated files from `skills/` without deleting target-only untracked user work. |
 
 ## Conventions
 

@@ -13,7 +13,7 @@ logs, patches, and screenshots remain external artifacts referenced by byte coun
 - read-only metadata counts and bounded samples;
 - external NUL-safe path/status artifact digests;
 - derived acceptance criteria and proposed boundary;
-- reserved dirty count/sample/artifact, assigned count zero;
+- reserved dirty count/sample/artifact, reservation mode, assigned count zero;
 - empty product/mutation command lists and empty resource list;
 - pending mutation gate.
 
@@ -41,7 +41,12 @@ Conceptual shape:
   },
   "mutation_authorized": false,
   "mutation_gate": {"status": "pending", "evaluated": false},
-  "user_work": {"status": "reserved", "reserved_count": 21353, "assigned_count": 0}
+  "user_work": {
+    "status": "reserved",
+    "reserved_count": 21353,
+    "assigned_count": 0,
+    "dirty_reservation_mode": "preserve_no_touch|preserve_and_continue"
+  }
 }
 ```
 
@@ -54,11 +59,14 @@ The numbers above illustrate counts from the prior incident; they are not a path
 - report path, byte count, and one SHA-256 digest;
 - summary at most 2 KiB;
 - top eight findings and an omitted count plus the external report pointer;
-- fixed/withdrawn/out-of-scope counts and machine-line status;
+- fixed/withdrawn/out-of-scope counts, verification, owned-path, and baseline-preservation
+  machine fields;
+- human-heading validation errors when malformed;
 - at most eight verification rows with bounded statuses/evidence references.
 
 It never returns the report body. A large report may be hashed and parsed, but its log/source
-content cannot enter the orchestrator context.
+content cannot enter the orchestrator context. A malformed report gets one separate report-only
+correction claim on the same worker; it never consumes the test or canary budgets.
 
 ## Final receipt shape
 
@@ -68,7 +76,7 @@ The final artifact uses `gjc-fleet-receipt/v2` and stays compact:
 {
   "schema": "gjc-fleet-receipt/v2",
   "phase": "RECEIPT",
-  "state": "complete|incomplete|blocked",
+  "state": "complete|incomplete|blocked|blocked-awaiting-user",
   "run_id": "opaque-run-id",
   "objective": {"text": "bounded objective", "source": "conversation"},
   "target": {"repo_root": "/absolute/path", "resolved_cwd_verified": true},
@@ -82,14 +90,29 @@ The final artifact uses `gjc-fleet-receipt/v2` and stays compact:
      "verification": [{"check": "focused", "status": "live"}]}
   ],
   "tests": {"ledger": {"path": "...", "sha256": "..."}, "attempts": 2},
-  "dirty": {"reserved_count": 1, "sample": ["..."], "artifact": {"path": "..."}},
-  "resources": {"created_count": 1, "retired_count": 1, "preserved_count": 0},
+  "dirty": {
+    "reserved_count": 1,
+    "mode": "preserve_no_touch|preserve_and_continue",
+    "sample": ["..."],
+    "artifact": {"path": "..."},
+    "adopted_count": 0,
+    "unauthorized_overlap_count": 0
+  },
+  "resources": {
+    "created_count": 1,
+    "retired_count": 1,
+    "preserved_count": 0,
+    "unowned_drift_count": 0,
+    "runtime_state": {"status": "fleet_created|pre_existing_preserved|unowned_drift"}
+  },
   "limitations": ["bounded limitation"]
 }
 ```
 
-`complete` requires all requested outcomes and required gates, no unowned/colliding drift,
-preserved user work, and retired resources. A missing report, failed/unknown gate, skipped
-required check, repeated test, second canary, or unknown cleanup makes the state incomplete or
-blocked. The user-facing report mentions the receipt path, result, and limitations in natural
-language without printing this JSON.
+`complete` requires all requested outcomes and required gates, no unauthorized overlap or
+unowned drift, preserved user work, a post-diff adoption proof when applicable, and retired
+resources. A missing report, failed/unknown gate, skipped required check, repeated test, second
+canary, or unknown cleanup makes the state incomplete or blocked. An ambiguous dirty mode is
+`blocked-awaiting-user` with one choice question, not an incomplete implementation. The
+user-facing report mentions the receipt path, result, and limitations in natural language
+without printing this JSON.
