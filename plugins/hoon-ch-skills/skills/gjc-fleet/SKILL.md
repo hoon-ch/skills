@@ -244,11 +244,17 @@ done
 ```
 
 Prove a partition before trusting it. Any intersection between concurrently running workers
-means the split is wrong:
+means the split is wrong — this check caught a real defect where a hub unit's file set bled
+into two later units:
 
 ```bash
-node scripts/check-exclusive.mjs orders/f2 orders/f3 orders/f4 orders/f5
+node scripts/check-exclusive.mjs orders/f2-order.md orders/f3-order.md \
+                                 orders/f4-order.md orders/f5-order.md
+# exit 0 = disjoint, 1 = overlap (names the shared files), 2 = usage error
 ```
+
+Compare only units that run at the same time. A serialized unit — a hub pass — is not a
+conflict.
 
 Longer detail: [references/pane-control.md](references/pane-control.md),
 [references/partitioning.md](references/partitioning.md),
