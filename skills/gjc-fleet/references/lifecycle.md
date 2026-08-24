@@ -12,25 +12,33 @@ DORMANT -> ROLE_ADMITTED -> OBJECTIVE_ADMITTED -> PREFLIGHTED -> DISPATCHING
          -> TRACKING -> VERIFYING -> RECEIPT
 ```
 
-`DORMANT` means no fleet role has been admitted. The exact `/skill:gjc-fleet` invocation moves
-the run to `ROLE_ADMITTED`; it does not authorize execution. With no explicit objective, the run
-ends at that state with a role receipt. No repository, worktree, Git history, dirty-path,
-focused-pane, Herdr, or model inspection is allowed before `OBJECTIVE_ADMITTED`, and no command,
-run directory, product mutation, worker dispatch, tab, pane, worktree, or session may be created.
+`DORMANT` means no fleet role has been admitted. An exact `/skill:gjc-fleet` activation with no
+objective moves the run to `ROLE_ADMITTED` and waits. It must not inspect the repository,
+worktree, Git history, dirty paths, focused pane, Herdr, or model configuration, and it must not
+create a run directory, execute a command, mutate product files, dispatch a worker, or create a
+tab, pane, worktree, or session. The user-facing response is natural language; the internal
+receipt is not shown.
 
-`OBJECTIVE_ADMITTED` requires an explicit actionable objective, target repository, non-empty
-acceptance criteria, and mutation boundary. The intake helper validates those fields without
-discovering them from the current checkout. A vague or incomplete request remains
-`ROLE_ADMITTED` and records blockers. Only after this transition may read-only target
-preflight and baseline capture begin.
+`OBJECTIVE_ADMITTED` begins when the orchestrator understands an ordinary-language objective.
+The target may be an explicit path or a deictic reference such as “current workspace”, “here”, or
+“this repo”, provided the session cwd is verified with Git and `realpath`. The user does not
+provide acceptance criteria or path globs. After target admission, the helper performs a
+read-only inventory and the orchestrator derives both the acceptance criteria and the proposed
+mutation boundary. The phase authorizes read-only inventory and analysis, not product mutation.
 
-`PREFLIGHTED` records fresh installed Herdr/GJC evidence and a resolved launch form. Only then
-may resources be created in `DISPATCHING`. `TRACKING`, `VERIFYING`, and `RECEIPT` require the
-durable evidence and cleanup rules below; a Herdr status cannot skip a phase.
+An objective that is vague for mutation may still be analyzed. Record material ambiguity as a
+pending blocker and ask about it only at the mutation gate if repository evidence cannot resolve
+it. Do not reject safe analysis merely because the user did not write an internal contract.
 
-Existing resources and baseline-dirty paths are user work. Reserve them before dispatch and
-never auto-assign them. A later explicit inclusion must name the path and preservation proof in
-the receipt; an observed dirty path alone never becomes an assignment.
+`PREFLIGHTED` records fresh installed Herdr/GJC evidence, a verified target root, the read-only
+inventory, and a resolved launch form. It does not pass the mutation gate. Immediately before a
+product-mutating order or worker dispatch, evaluate that gate against fresh evidence. Unresolved
+material ambiguity, incomplete inventory, an unsafe/empty boundary, or dirty-path overlap blocks
+the mutating action. Dirty paths outside the boundary remain reserved user work and do not block
+unrelated analysis.
+
+`DISPATCHING`, `TRACKING`, `VERIFYING`, and `RECEIPT` require the durable evidence and cleanup
+rules below; a Herdr status cannot skip a phase.
 
 ## Ledger before memory
 
@@ -43,12 +51,16 @@ run_id  unit_id  workspace_id  tab_id  pane_id  requested_cwd  resolved_cwd  res
 
 Also record:
 
+- the objective source and target-reference verification;
+- the read-only inventory commands, relevant surfaces, and dirty-path reservation;
+- the derived acceptance criteria and proposed boundary;
 - the baseline Git status and hashes, including untracked paths;
 - all Herdr IDs present before the run;
 - the exact preflight output summary and resolved model/preset launch form;
 - every server PID/port started by this run;
 - frozen report checksums and order file paths;
-- authorized new product files and their owner.
+- authorized new product files and their owner;
+- mutation-gate status and blockers immediately before any mutating dispatch.
 
 Write a ledger row immediately after parsing each JSON creation response. Never derive an ID from
 labels, tab numbers, branch names, or a guessed workspace path.
@@ -59,9 +71,10 @@ The default is no automatic commit, push, stash, reset, restore, branch deletion
 Workers leave product edits in the selected checkout/worktree for the user to inspect. The
 orchestrator compares the final state with the baseline and reports all uncommitted paths.
 
-If the target checkout was dirty, reserve those paths before dispatch. Do not overwrite or
-reformat them. If a dirty path must be part of the assignment, record the explicit inclusion and
-its preservation evidence in the receipt. Never “clean” a conflict by taking a snapshot and
+The inventory reserves every dirty path before analysis or dispatch. Do not overwrite or reformat
+reserved paths. A dirty path outside the proposed boundary must not block unrelated analysis. If
+a dirty path overlaps a mutating assignment, the mutation gate blocks unless the receipt records
+explicit inclusion and preservation proof. Never “clean” a conflict by taking a snapshot and
 silently restoring the user's version later.
 
 A dedicated worktree is safer for a clean baseline, but its uncommitted changes are still user

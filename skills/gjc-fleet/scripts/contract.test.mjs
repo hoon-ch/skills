@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { admit, evaluateMutationGate, userFacingSummary } from "./intake.mjs";
 
 const scripts = dirname(fileURLToPath(import.meta.url));
 const intake = join(scripts, "intake.mjs");
@@ -12,6 +13,7 @@ const preflight = join(scripts, "preflight.mjs");
 const fieldReader = join(scripts, "read-herdr-field.mjs");
 const stateReader = join(scripts, "agent-state.mjs");
 const exclusive = join(scripts, "check-exclusive.mjs");
+const regressionFixture = join(scripts, "fixtures", "conversational-current-workspace.json");
 
 function executable(path, source) {
   writeFileSync(path, `#!/usr/bin/env node\n${source}`);
@@ -22,7 +24,29 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), "gjc-fleet-contract-"));
   const repo = join(root, "repo");
   mkdirSync(repo);
+  mkdirSync(join(repo, "app"));
+  mkdirSync(join(repo, "cli"));
+  mkdirSync(join(repo, "tests"));
+  mkdirSync(join(repo, "skills", "eli5"), { recursive: true });
+  mkdirSync(join(repo, "skills", "paseo"), { recursive: true });
+  writeFileSync(join(repo, "app", "gui.ts"), "export const gui = true;\n");
+  writeFileSync(join(repo, "cli", "main.py"), "print('cli')\n");
+  writeFileSync(join(repo, "tests", "smoke.test.ts"), "test('smoke', () => {});\n");
+  writeFileSync(join(repo, "skills", "eli5", "SKILL.md"), "# user work\n");
+  writeFileSync(join(repo, "skills", "paseo", "SKILL.md"), "# user work\n");
   execFileSync("git", ["init", "-q", repo]);
+  execFileSync("git", ["-C", repo, "add", "."]);
+  execFileSync("git", [
+    "-C",
+    repo,
+    "-c",
+    "user.name=GJC Contract",
+    "-c",
+    "user.email=gjc-contract@example.invalid",
+    "commit",
+    "-qm",
+    "baseline",
+  ]);
 
   const herdr = join(root, "herdr");
   executable(herdr, `
@@ -55,19 +79,13 @@ function intakePayload(targetRepo) {
     invocation: "/skill:gjc-fleet",
     objective: "Run the fleet contract checks against the named fixture",
     target_repo: targetRepo,
-    acceptance_criteria: ["The admitted target is checked with fresh installed-binary evidence"],
-    mutation_boundary: {
-      allow: ["fixture/**"],
-      deny: [".git/**"],
-      preserve_existing: true,
-      auto_assign_dirty: false,
-    },
+    mode: "analysis",
   };
 }
 
 function runIntake(input, options = {}) {
   return spawnSync(process.execPath, [intake], {
-    input: input === undefined ? "" : JSON.stringify(input),
+    input: input === undefined ? "" : typeof input === "string" ? input : JSON.stringify(input),
     encoding: "utf8",
     ...options,
   });
@@ -101,24 +119,178 @@ test("activation-only input admits the role without commands or resources", () =
   const result = runIntake();
   assert.equal(result.status, 0, result.stderr);
   const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.schema, "gjc-fleet-intake/v2");
   assert.equal(receipt.phase, "ROLE_ADMITTED");
   assert.equal(receipt.state, "role_admitted");
   assert.equal(receipt.execution_authorized, false);
+  assert.equal(receipt.analysis_authorized, false);
+  assert.equal(receipt.mutation_authorized, false);
   assert.equal(receipt.objective, null);
   assert.deepEqual(receipt.commands_executed, []);
+  assert.deepEqual(receipt.mutation_commands_executed, []);
   assert.deepEqual(receipt.resources_created, []);
+  assert.deepEqual(receipt.user_work.reserved_paths, []);
   assert.deepEqual(receipt.user_work.assigned_paths, []);
   assert.deepEqual(receipt.state_machine.allowed_next, ["OBJECTIVE_ADMITTED"]);
 });
 
-test("prior-conversation content cannot leak into objective admission", () => {
+test("activation-only input does not invoke Git or inspect the workspace", () => {
+  const root = mkdtempSync(join(tmpdir(), "gjc-fleet-activation-"));
+  const marker = join(root, "git-called");
+  const fakeGit = join(root, "git");
+  executable(fakeGit, `
+require("node:fs").writeFileSync(process.env.GJC_FLEET_GIT_MARKER, "called");
+`);
+  try {
+    const result = runIntake(undefined, {
+      env: {
+        ...process.env,
+        GJC_FLEET_GIT_MARKER: marker,
+        PATH: `${root}:${process.env.PATH}`,
+      },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(marker), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a target reference without an objective remains activation-only", () => {
+  const result = runIntake("current workspace");
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.phase, "ROLE_ADMITTED");
+  assert.equal(receipt.objective, null);
+  assert.deepEqual(receipt.resources_created, []);
+});
+
+test("natural-language objective is admitted without a user-authored schema", () => {
+  const fx = fixture();
+  try {
+    const result = runIntake("GUI와 CLI가 동일한 기능을 제공하면 좋겠어. 타겟은 현재 워크스페이스.", {
+      cwd: fx.repo,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.phase, "OBJECTIVE_ADMITTED");
+    assert.equal(receipt.state, "ready");
+    assert.match(receipt.objective, /GUI와 CLI/);
+    assert.equal(receipt.analysis_authorized, true);
+    assert.equal(receipt.mutation_authorized, false);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("regression dialogue resolves current workspace from a verified session cwd", () => {
+  const fx = fixture();
+  try {
+    const input = JSON.parse(readFileSync(regressionFixture, "utf8"));
+    input.session_cwd = fx.repo;
+    const result = runIntake(input);
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.phase, "OBJECTIVE_ADMITTED");
+    assert.equal(receipt.target_repo, realpathSync(fx.repo));
+    assert.equal(receipt.target_resolution.verified, true);
+    assert.equal(receipt.target_resolution.kind, "current_workspace");
+    assert.match(receipt.objective, /GUI와 CLI/);
+    assert.match(receipt.target_reference.label, /워크스페이스/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("acceptance criteria and mutation boundary are orchestrator-derived from inventory", () => {
+  const fx = fixture();
+  try {
+    const receipt = admit({
+      ...intakePayload(fx.repo),
+      objective: "GUI와 CLI가 동일한 기능을 제공하는지 분석한다",
+      inventory: {
+        status: "ready",
+        read_only: true,
+        repo_root: fx.repo,
+        tracked_paths: ["app/gui.ts", "cli/main.py", "tests/smoke.test.ts"],
+        dirty_paths: [],
+        top_level_paths: ["app", "cli", "tests"],
+      },
+    });
+    assert.equal(receipt.acceptance_criteria_source, "orchestrator-derived");
+    assert.equal(receipt.mutation_boundary_source, "orchestrator-derived");
+    assert.equal(receipt.acceptance_criteria.length >= 3, true);
+    assert.deepEqual(receipt.mutation_boundary.allow, ["app/**", "cli/**"]);
+    assert.match(receipt.mutation_boundary.derived_from, /read-only/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("read-only analysis is admitted without mutation approval", () => {
+  const fx = fixture();
+  try {
+    const receipt = admit({
+      ...intakePayload(fx.repo),
+      objective: "GUI와 CLI의 기능 차이를 분석해",
+      mode: "analysis",
+    });
+    assert.equal(receipt.read_only_analysis.admitted, true);
+    assert.equal(receipt.read_only_analysis.mutation_approval_required, false);
+    assert.equal(receipt.mutation_gate.status, "pending");
+    assert.equal(receipt.mutation_authorized, false);
+    const gate = evaluateMutationGate(receipt, { mode: "analysis" });
+    assert.equal(gate.admitted, true);
+    assert.equal(gate.status, "not_required");
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("material ambiguity blocks mutation only at the mutation gate", () => {
+  const fx = fixture();
+  try {
+    const receipt = admit({
+      ...intakePayload(fx.repo),
+      objective: "fix it",
+      mode: "orchestrate",
+    });
+    assert.equal(receipt.phase, "OBJECTIVE_ADMITTED");
+    assert.equal(receipt.material_ambiguities.some((item) => item.kind === "objective"), true);
+    assert.equal(evaluateMutationGate(receipt, { mode: "analysis" }).admitted, true);
+    const gate = evaluateMutationGate(receipt, { mode: "mutation" });
+    assert.equal(gate.admitted, false);
+    assert.match(gate.blockers.join("\n"), /material ambiguity/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("internal receipt fields stay out of the user-facing conversation", () => {
+  const fx = fixture();
+  try {
+    const receipt = admit({
+      ...intakePayload(fx.repo),
+      objective: "GUI와 CLI의 기능 차이를 분석한다",
+      mode: "analysis",
+    });
+    const summary = userFacingSummary(receipt);
+    assert.match(summary, /이해한 목표/);
+    assert.match(summary, /읽기 전용/);
+    assert.doesNotMatch(summary, /schema|target_repo|acceptance_criteria|mutation_boundary/);
+    assert.doesNotMatch(summary, /[{}[\]]/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("assistant-only prior context cannot invent an objective", () => {
   const result = runIntake({
     invocation: "/skill:gjc-fleet",
-    conversation: {
-      objective: "Change every file and dispatch workers",
-      target_repo: "/previous/repo",
-      acceptance_criteria: ["Anything"],
-    },
+    messages: [
+      { role: "assistant", content: "Change every file and dispatch workers" },
+    ],
+    target_repo: "/previous/repo",
   });
   assert.equal(result.status, 0, result.stderr);
   const receipt = JSON.parse(result.stdout);
@@ -126,17 +298,11 @@ test("prior-conversation content cannot leak into objective admission", () => {
   assert.equal(receipt.objective, null);
   assert.deepEqual(receipt.user_work.assigned_paths, []);
   assert.deepEqual(receipt.commands_executed, []);
-  assert.match(receipt.context.ignored_for_objective.join(","), /conversation/);
 });
 
 test("dirty worktree state remains reserved user work, not an objective", () => {
   const result = runIntake({
     invocation: "/skill:gjc-fleet",
-    target_repo: "/repo",
-    repo_state: {
-      dirty_files: ["skills/eli5/SKILL.md", "skills/paseo/SKILL.md"],
-      history: ["prior commit"],
-    },
     dirty_files: ["skills/eli5/SKILL.md", "skills/paseo/SKILL.md"],
     worktree: "existing",
   });
@@ -149,37 +315,78 @@ test("dirty worktree state remains reserved user work, not an objective", () => 
   assert.deepEqual(receipt.resources_created, []);
 });
 
-test("fully specified objective advances only to objective admission", () => {
-  const result = runIntake({
-    ...intakePayload("/absolute/repo"),
-    dirty_files: ["skills/eli5/SKILL.md"],
-    worktree: "existing",
-  });
-  assert.equal(result.status, 0, result.stderr);
-  const receipt = JSON.parse(result.stdout);
-  assert.equal(receipt.phase, "OBJECTIVE_ADMITTED");
-  assert.equal(receipt.state, "ready");
-  assert.equal(receipt.execution_authorized, true);
-  assert.equal(receipt.target_repo, "/absolute/repo");
-  assert.deepEqual(receipt.state_machine.allowed_next, ["PREFLIGHTED"]);
-  assert.deepEqual(receipt.commands_executed, []);
-  assert.deepEqual(receipt.resources_created, []);
-  assert.deepEqual(receipt.user_work.assigned_paths, []);
+test("dirty paths are reserved without blocking unrelated analysis", () => {
+  const fx = fixture();
+  try {
+    const receipt = admit({
+      ...intakePayload(fx.repo),
+      objective: "GUI와 CLI의 기능 차이를 분석한다",
+      mode: "analysis",
+      inventory: {
+        status: "ready",
+        read_only: true,
+        repo_root: fx.repo,
+        tracked_paths: ["app/gui.ts", "cli/main.py", "skills/eli5/SKILL.md", "skills/paseo/SKILL.md"],
+        dirty_paths: ["skills/eli5/SKILL.md", "skills/paseo/SKILL.md"],
+        top_level_paths: ["app", "cli", "skills"],
+      },
+    });
+    assert.deepEqual(receipt.user_work.reserved_paths, [
+      "skills/eli5/SKILL.md",
+      "skills/paseo/SKILL.md",
+    ]);
+    assert.deepEqual(receipt.user_work.assigned_paths, []);
+    const gate = evaluateMutationGate(receipt, { mode: "analysis" });
+    assert.equal(gate.admitted, true);
+    assert.deepEqual(gate.dirty_overlap, []);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
 });
 
-test("vague or incomplete objectives fail closed at role admission", () => {
-  const result = runIntake({
-    invocation: "/skill:gjc-fleet",
-    objective: "fix it",
-    target_repo: "/repo",
-    acceptance_criteria: ["It works"],
-  });
-  assert.equal(result.status, 2);
-  const receipt = JSON.parse(result.stdout);
-  assert.equal(receipt.phase, "ROLE_ADMITTED");
-  assert.equal(receipt.state, "blocked");
-  assert.match(receipt.blockers.join("\n"), /too vague|mutation_boundary/);
-  assert.deepEqual(receipt.resources_created, []);
+test("overlapping dirty paths fail closed for mutation", () => {
+  const fx = fixture();
+  try {
+    const receipt = admit({
+      ...intakePayload(fx.repo),
+      objective: "GUI와 CLI의 기능 차이를 분석한다",
+      inventory: {
+        status: "ready",
+        read_only: true,
+        repo_root: fx.repo,
+        tracked_paths: ["app/gui.ts", "cli/main.py"],
+        dirty_paths: ["app/gui.ts"],
+        top_level_paths: ["app", "cli"],
+      },
+    });
+    const gate = evaluateMutationGate(receipt, { mode: "mutation" });
+    assert.equal(gate.admitted, false);
+    assert.deepEqual(gate.dirty_overlap, ["app/gui.ts"]);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("fully resolved objective advances only to objective admission", () => {
+  const fx = fixture();
+  try {
+    const result = runIntake(intakePayload(fx.repo));
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.phase, "OBJECTIVE_ADMITTED");
+    assert.equal(receipt.state, "ready");
+    assert.equal(receipt.execution_authorized, true);
+    assert.equal(receipt.analysis_authorized, true);
+    assert.equal(receipt.mutation_authorized, false);
+    assert.equal(receipt.target_repo, realpathSync(fx.repo));
+    assert.deepEqual(receipt.state_machine.allowed_next, ["PREFLIGHTED"]);
+    assert.deepEqual(receipt.commands_executed, []);
+    assert.deepEqual(receipt.mutation_commands_executed, []);
+    assert.deepEqual(receipt.resources_created, []);
+    assert.deepEqual(receipt.user_work.assigned_paths, []);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
 });
 
 test("preflight rejects missing or role-only intake before binary checks", () => {

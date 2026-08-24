@@ -1,0 +1,15 @@
+{
+  "invocation": "/skill:gjc-fleet",
+  "messages": [
+    {
+      "role": "user",
+      "content": "GUI와 CLI가 동일한 기능을 제공하면 좋겠어"
+    },
+    {
+      "role": "user",
+      "content": "네가 분석해, 타겟은 현재 워크스페이스"
+    }
+  ],
+  "target_reference": "현재 워크스페이스",
+  "mode": "analysis"
+}

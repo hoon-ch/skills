@@ -11,18 +11,23 @@ The state machine is a safety gate, not a reporting label:
 | Phase | Required evidence | Forbidden actions |
 | --- | --- | --- |
 | `DORMANT` | no role admission | all repository/worktree reads and all commands/resources |
-| `ROLE_ADMITTED` | role receipt with `execution_authorized: false` | objective inference, target discovery, preflight, mutation, dispatch, resource creation |
-| `OBJECTIVE_ADMITTED` | validated explicit objective, target, acceptance criteria, and mutation boundary | assigning dirty/pre-existing paths automatically |
-| `PREFLIGHTED` | fresh Herdr/GJC help, versions, model/preset, and target-root evidence | worker/resource creation before the receipt is recorded |
-| `DISPATCHING` | returned resource IDs and ownership ledger rows | guessed IDs, unscoped panes, overlap, or unrecorded processes |
+| `ROLE_ADMITTED` | activation-only role receipt with read-only and mutation authorization false | objective inference, target discovery, preflight, mutation, dispatch, resource creation |
+| `OBJECTIVE_ADMITTED` | natural-language objective, verified target, read-only inventory, derived criteria/boundary, and dirty-path reservation | treating the proposal as mutation approval or assigning dirty paths automatically |
+| `PREFLIGHTED` | fresh Herdr/GJC help, versions, model/preset, and target-root evidence | worker/resource creation before the receipt and mutation gate are recorded |
+| `DISPATCHING` | passed mutation gate for mutating work, returned resource IDs, and ownership ledger rows | guessed IDs, unscoped panes, overlap, or unrecorded processes |
 | `TRACKING` | bounded liveness polls and durable result evidence | completion from `done`, `idle`, timeout, or stale pane text alone |
 | `VERIFYING` | changed-path ownership, gates, baseline preservation, and cleanup evidence | hiding drift with reset, restore, stash, or broad copy |
 | `RECEIPT` | one factual receipt with limitations | claiming `complete` with unknown, skipped, or preserved active work |
 
-No gate is allowed to promote a run from `ROLE_ADMITTED` to `OBJECTIVE_ADMITTED`. The explicit
-intake payload is the only source for the objective and boundary; current repository state,
-worktree labels, Git history, dirty files, and prior conversation are observations or user work,
-never authorization.
+Activation-only is the only path that stops at `ROLE_ADMITTED`. A natural-language objective
+promotes the run after the target is verifiable; missing user-authored criteria or path globs are
+not blockers because the orchestrator derives them after read-only inventory.
+
+Read-only analysis is allowed from `OBJECTIVE_ADMITTED` without mutation approval. The mutation
+gate is a subgate immediately before a product-mutating order or worker dispatch. It fails closed
+for unresolved material ambiguity, incomplete inventory, an unsafe/empty proposed boundary, and
+dirty-path overlap. A dirty path outside the boundary is reserved user work, not an analysis
+blocker.
 
 ## Evidence status vocabulary
 
@@ -40,6 +45,10 @@ artifacts is unverified.
 
 | Gate | Owner | Required evidence |
 | --- | --- | --- |
+| Target resolution | orchestrator | session cwd or explicit path, Git root, and `realpath` proof |
+| Read-only inventory | orchestrator | tracked/untracked relevant paths, dirty reservation, and command evidence |
+| Derived acceptance/boundary | orchestrator | user objective plus inventory evidence and proposed path set |
+| Mutation gate | orchestrator | fresh ambiguity, inventory, boundary, and dirty-overlap evaluation |
 | Type-check of owned files | worker and orchestrator when practical | command, exit status, scope |
 | Production build/prerender | orchestrator only | fresh command, exit status, build log |
 | Behavior/route smoke | orchestrator | endpoint/assertion or browser evidence |
@@ -49,8 +58,8 @@ artifacts is unverified.
 | Cleanup | orchestrator | every created resource retired; preserved active resources block `complete` |
 
 Run the production build only from a clean, current server/build state. A long-lived dev server
-can retain a stale route manifest after a directory rename; restart only the PID recorded by
-this run before believing a route regression. Do not use an unscoped process kill.
+can retain a stale route manifest after a directory rename; restart only the PID recorded by this
+run before believing a route regression. Do not use an unscoped process kill.
 
 If a gate fails, re-run it once in isolation to distinguish a transient environment failure
 from a reproducible regression. A second failure is real evidence. Route the fix to the owning
@@ -62,7 +71,8 @@ At each wave boundary, enumerate all changed paths with a NUL-safe Git status. C
 
 1. the baseline paths recorded before the fleet;
 2. every live unit's declared exclusive set;
-3. the run's explicitly authorized result/artifact paths.
+3. the run's explicitly authorized result/artifact paths;
+4. the reserved dirty paths recorded by the intake inventory.
 
 A baseline path that changed is user-work drift and blocks completion unless that path was
 explicitly assigned. A changed product path with no owner is unauthorized. A path with two live
@@ -92,7 +102,7 @@ The final receipt may say `complete` only when:
 - every out-of-scope handoff is resolved or explicitly reported as blocking;
 - all required global gates are `live` or `gated` with evidence, with no unreviewed `skip`;
 - no unowned or colliding product drift exists;
-- baseline user work is byte/content-preserved;
+- baseline user work, including reserved dirty paths, is byte/content-preserved;
 - every requested unit is retired; a deliberately preserved running/blocked/unknown unit makes
   the receipt `incomplete` or `blocked`, even when its resource is listed with an owner and next
   action.

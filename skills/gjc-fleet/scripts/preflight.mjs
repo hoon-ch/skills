@@ -104,7 +104,15 @@ function loadIntakeReceipt(path, requestedRepo) {
   }
   const errors = validateObjectiveReceipt(receipt);
   if (errors.length) fail(errors.join("; "));
-  if (resolve(receipt.target_repo) !== resolve(requestedRepo)) {
+  let receiptRepo;
+  let requestedRepoPath;
+  try {
+    receiptRepo = realpathSync(resolve(receipt.target_repo));
+    requestedRepoPath = realpathSync(resolve(requestedRepo));
+  } catch {
+    fail("intake receipt target_repo or --repo cannot be resolved");
+  }
+  if (receiptRepo !== requestedRepoPath) {
     fail("intake receipt target_repo does not match --repo");
   }
   return receipt;
@@ -264,7 +272,7 @@ function main() {
     repo,
     herdr: herdrResult,
     gjc: gjcResult,
-    note: "Admission is read-only. Resource creation still requires recording every JSON-returned ID in the ledger.",
+    note: "Preflight is read-only. Analysis needs no mutation approval; mutating resource creation still requires a passed gate and every JSON-returned ID in the ledger.",
   }, null, 2));
 }
 
