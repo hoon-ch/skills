@@ -1,85 +1,71 @@
-# Partitioning work so parallel workers cannot conflict
+# Partitioning work without collisions
 
-## The problem with one-worktree-per-unit
+A fleet may edit one checkout concurrently only when the concurrently running units own disjoint
+paths. The partition is a safety invariant, not a suggestion.
 
-The obvious topology — a worktree and a branch per unit of work — fails on UI-shaped work.
-Findings scattered across many screens still land in the same few shared files: design tokens,
-shared primitives, entity logic. Twenty branches editing `globals.css` produce twenty
-conflicting diffs and an unmergeable pile.
+## Boundary and baseline
 
-## The partition that works
+Before review or fan-out:
 
-Treat it as a graph problem:
+1. Resolve one absolute Git root and one `run_id`.
+2. Capture `git status --porcelain=v1 -z` plus hashes of every tracked and untracked path that
+   is already dirty. Store this outside product files in the run directory.
+3. Record all existing Herdr workspace/tab/pane IDs. Only IDs returned by this run are disposable.
+4. Mark baseline-dirty paths as reserved. A worker cannot modify them unless the assignment
+   explicitly includes the path and the receipt names that decision.
+5. Reject any order whose owned set intersects another live unit or a reserved user path.
 
-- **node** = one finding (or task) with its target file list
-- **edge** = two findings name the same file
-- **connected component** = a set of findings whose files never overlap another component's
+Do not seed a new worktree by applying a patch over an unknown checkout. If uncommitted work
+must be included, copy only an explicitly enumerated binary patch and explicitly enumerated
+untracked files into a fresh workspace, then compare marker counts and hashes. Never use
+`git reset`, `git restore`, `git stash`, or a broad copy to make the boundary look clean.
 
-Components are provably file-disjoint, so their workers can edit **the same worktree
-concurrently**. No branches, no merges, nothing to reconcile. Union-find over the file lists
-is enough:
+## Freeze before ordering
 
-```js
-const par = items.map((_, i) => i);
-const find = (x) => (par[x] === x ? x : (par[x] = find(par[x])));
-const owner = new Map();
-items.forEach((f, i) => f.files.forEach((p) => {
-  if (owner.has(p)) { const a = find(owner.get(p)), b = find(i); if (a !== b) par[b] = a; }
-  else owner.set(p, i);
-}));
+Read-only reviewers write separate reports. When the review window closes, stop accepting
+reports, copy them to a frozen directory, and checksum the frozen set. Partition only the
+frozen copy. A report that changes after orders are emitted is a new input for a new wave, not
+an invisible scope expansion.
+
+## File graph
+
+- node = one finding or assignment with its exact target file list;
+- edge = two nodes name the same file;
+- connected component = one serialized unit whose files overlap internally but not with another
+  concurrently running unit.
+
+Union-find over file names is enough. Paths must be normalized relative repository paths; do
+not use globs or directory names as a substitute for files. New files must be named in the
+order before dispatch so two workers cannot invent the same path.
+
+Hub files such as global styles, shared UI primitives, entity contracts, routing registries,
+and generated configuration are edges to many findings. Put a hub in its own unit and run it
+alone first. Re-freeze/re-partition the remaining findings after the hub lands; an old order is
+not valid merely because its text still exists.
+
+## Verify every concurrent wave
+
+Run the bundled verifier over only the units that will be live together:
+
+```bash
+node /path/to/gjc-fleet/scripts/check-exclusive.mjs \
+  "$RUN_DIR/orders/f2-order.md" \
+  "$RUN_DIR/orders/f3-order.md" \
+  "$RUN_DIR/orders/f4-order.md"
 ```
 
-## Hub files collapse the graph
+Exit 0 is a proof of disjoint exact paths. Exit 1 names an overlap and blocks the wave. Exit 2
+means an order is malformed. A serialized hub may overlap later units because it is not live at
+the same time; do not incorrectly compare serialized and parallel waves.
 
-Some files are edges to everything: the global stylesheet, `shared/ui/*`, `entities/*`. Left
-in the pool, they merge nearly every finding into one giant component — observed as a single
-unit holding 20 files and 33 findings while the rest were trivial.
+The verifier reads only the `## Exclusive file set` section, rejects traversal/glob paths, and
+rejects duplicate declarations. It does not prove that a worker respected the contract after
+dispatch. At each wave boundary, compare actual changed paths with the union of declared sets:
 
-Split hubs into their own unit and run it **alone, first**:
+- zero owners = unauthorized drift or an explicitly recorded new artifact;
+- one owner = valid ownership;
+- multiple owners = a collision; stop the affected wave and preserve both diffs for review.
 
-1. Classify a finding as *hub* if any of its files matches a hub pattern.
-2. The hub unit runs by itself. Because nothing else is running, it may touch any file it needs.
-3. Re-partition the remainder. Without hub edges it fragments into many small independent units.
-4. Release those in parallel.
-
-Order matters beyond conflicts: hub changes are the foundation. Cosmetic polish applied before
-a token or contract change gets invalidated by it. Sequence foundations first, always.
-
-## Verify the partition, never assume it
-
-Emitting orders is not proof. Compute the intersection of every concurrently running pair:
-
-```js
-for (let i = 0; i < ids.length; i++)
-  for (let j = i + 1; j < ids.length; j++) {
-    const x = [...sets[ids[i]]].filter((v) => sets[ids[j]].has(v));
-    if (x.length) console.log("CONFLICT", ids[i], ids[j], x.join(","));
-  }
-```
-
-This check caught a real defect: the hub unit's file set bled into two later units, because a
-hub finding also named page-level files. Two fixes are valid — restrict the hub unit's declared
-set to hub files only and let it hand off the page portion, or keep it unrestricted and rely on
-it running alone. Only compare units that actually run at the same time; a serialized unit is
-not a conflict.
-
-## Freeze the input before partitioning
-
-Review sessions keep appending findings after they first report — observed growing 77 → 99
-after orders were already emitted, which silently changed worker scope mid-flight. Copy reports
-to a frozen directory, checksum it, and point every downstream generator at the frozen copy.
-
-Tell reviewers explicitly to stop appending, then freeze; do not rely on the instruction alone.
-
-## Sizing units
-
-Balance by weight, not by count. `P0*3 + P1*2 + P2` approximates effort well enough. Very small
-components can share a worker as long as their file sets stay disjoint — bundling them does not
-break the guarantee, because disjointness is a property of the sets, not of the grouping.
-
-## What does not partition
-
-If a unit needs a file another concurrently running unit owns, do not let it reach across. Give
-every worker an out-of-scope channel in its result file and route those requests yourself once
-the owner finishes. Deferred handoffs stayed correct across two rounds; reaching across would
-have raced.
+A worker that needs a path outside its set must record an out-of-scope handoff with the blocking
+file. It must not edit around the partition. Route the handoff after the owner retires and
+re-emit the order against the new frozen state.

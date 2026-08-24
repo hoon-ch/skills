@@ -1,263 +1,312 @@
 ---
 name: gjc-fleet
-description: Become the orchestrator of a fleet of GJC worker sessions running in Herdr panes — partition a wide task, dispatch workers into a worktree, poll them, verify what they claim, retire each unit when it lands. Use when a task is too wide for one session (audit every page, fix every finding, migrate every module). Invoking this skill adopts the orchestrator role immediately. Requires HERDR_ENV=1.
+description: Orchestrate multiple GJC worker sessions through Herdr with explicit cwd and model admission, collision-proof file ownership, evidence-based tracking, and ownership-safe cleanup. Use for a task that genuinely decomposes into several independent review or implementation units. Requires HERDR_ENV=1.
 ---
 
 # GJC Fleet Orchestration
 
-Drive many GJC sessions as workers from one orchestrator session. The orchestrator never
-implements; it partitions work, dispatches, polls, verifies, retires finished units, and owns
-the gates workers cannot run.
+This skill makes the invoking session the fleet orchestrator. The orchestrator partitions work,
+creates and directs GJC sessions, polls durable evidence, owns global gates, retires only proven
+units, and writes the final receipt. Workers make product edits; the orchestrator writes only
+briefs, orders, results/receipts, and its own tooling.
 
-This skill exists because the naive approach fails in specific, repeatable ways: GJC is not
-a Herdr-recognized agent kind, so the agent surface refuses it; workers echo completion
-templates instead of working; workers stall in analysis without editing; and `tsc` passes
-while the production build breaks. Each has a verified countermeasure below.
+A fleet is not a way to run several agents because it is interesting. Use it only when units are
+independent and the file partition can be proven. Keep a shared contract serialized, and use one
+or two sessions directly when fleet overhead exceeds the work.
 
-## Operating stance
+The default is no product commit, push, stash, reset, restore, or destructive cleanup. The user
+chooses how verified uncommitted work is landed. Never claim completion from a worker's sentence,
+Herdr's `done` status, or a stale terminal snapshot.
 
-Invoking this skill **is** the role assignment. Adopt it silently and start working.
+## Activation and intake boundary
 
-- **No preamble.** Do not explain the skill, restate this workflow, announce phases, or ask
-  permission to begin. The user knows what they invoked. Your first output is either the
-  preflight result or the single question that unblocks it.
-- **Ask only for what you cannot derive.** The target surface, the scope boundary, and the
-  model preset are the only things worth asking about, and only when the repository cannot
-  answer them. Everything else you determine by reading the repo.
-- **You are the only voice the user hears.** Workers never talk to the user. You report
-  deltas and decisions, not activity. Never relay a worker's self-report as fact — verify it
-  first, and say what you verified it with.
-- **You do not touch product code.** Your writes are limited to orchestration artifacts:
-  briefs, orders, results, tooling, ledgers. If a fix is one line, it still goes to a worker;
-  the exception is a defect in your own tooling or a gate you own.
-- **Bring decisions, not menus.** When a fork materially changes the outcome, state the
-  options, recommend one with a reason, and stop. Do not ask which of six things to do.
-- **Report in units of work, not effort.** "3 of 5 units landed, unit 4 is red on the build,
-  here is why" — not elapsed time, not how many sessions are busy.
+`/skill:gjc-fleet` is role admission, not execution authorization. The only valid path for an
+invocation without an explicit objective is:
 
-The user is talking to the orchestrator from the first message. Behave accordingly.
+```text
+DORMANT -> ROLE_ADMITTED
+```
 
-## Use this skill when
+Return one `ROLE_ADMITTED` receipt and stop. Do not inspect the current repository, worktree,
+Git history, dirty files, focused pane, Herdr inventory, or model configuration. Do not create a
+run directory, execute a command, mutate product files, dispatch a worker, or create a tab, pane,
+worktree, or session. Preserve only the context supplied by the user; current repository state
+is never an implicit objective or approval.
 
-- The work decomposes into many similar units (pages, routes, modules, endpoints) and one
-  session would either truncate scope or take too long.
-- You will act as orchestrator: no product edits by you, only partitioning and verification.
-- `HERDR_ENV=1`. Without Herdr, use `task` subagents instead — this skill is about
-  long-lived interactive sessions, which subagents are not.
+Orchestration intake requires all four explicit top-level fields:
 
-Do not use it to run two or three sessions; the coordination overhead exceeds the benefit.
-Do not use it when the units share one evolving contract — sequence that instead.
+```json
+{
+  "invocation": "/skill:gjc-fleet",
+  "objective": "Concrete outcome with a named scope",
+  "target_repo": "/absolute/repository/root",
+  "acceptance_criteria": ["Observable criterion with evidence"],
+  "mutation_boundary": {
+    "allow": ["relative/path/**"],
+    "deny": [".git/**"],
+    "preserve_existing": true,
+    "auto_assign_dirty": false
+  }
+}
+```
+
+The bundled `scripts/intake.mjs` validates this payload without reading the filesystem or
+starting any external process. It admits `OBJECTIVE_ADMITTED` only when the objective is actionable, the
+target is explicit, acceptance criteria are non-empty, and the mutation boundary preserves
+existing work and forbids automatic dirty-path assignment. Missing or vague input remains at
+`ROLE_ADMITTED` with blockers; it never starts orchestration. Dirty files, an existing worktree,
+repository history, or prior conversation text cannot fill any missing field.
+
+The lifecycle is strictly:
+
+```text
+DORMANT -> ROLE_ADMITTED -> OBJECTIVE_ADMITTED -> PREFLIGHTED -> DISPATCHING
+         -> TRACKING -> VERIFYING -> RECEIPT
+```
 
 ## Quick Start
 
-Verify the substrate, then the model preset, before creating anything.
+First obtain a ready intake receipt from the explicit request above. An activation-only call
+returns at `ROLE_ADMITTED`; do not run the following preflight path in that state. After
+`OBJECTIVE_ADMITTED`, save that receipt outside product files, then run the read-only admission
+before creating a tab, pane, worktree, or agent. `TARGET_REPO` is the absolute repository root,
+not merely the orchestrator's current directory:
 
 ```bash
-test "${HERDR_ENV:-}" = 1 || echo "not inside Herdr; stop"
-herdr agent | grep '^  kinds:'        # confirm gjc is absent from the kind list
+RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/gjc-fleet.XXXXXX")"
+printf '%s' "$INTAKE_JSON" | node /path/to/gjc-fleet/scripts/intake.mjs > "$RUN_DIR/intake.json" || exit 2
+TARGET_REPO="$(node -e 'const r=require(process.argv[1]); if(r.phase!=="OBJECTIVE_ADMITTED") process.exit(2); process.stdout.write(r.target_repo)' "$RUN_DIR/intake.json")" || exit 2
+
+# Hard boundary: no Herdr control from an ordinary terminal.
+test "${HERDR_ENV:-}" = 1 || exit 2
+
+# Load the installed guidance; the installed binary is syntax authority.
+herdr --skill > "$RUN_DIR/herdr-skill.md"
+
+node /path/to/gjc-fleet/scripts/preflight.mjs \
+  --repo "$TARGET_REPO" \
+  --intake-receipt "$RUN_DIR/intake.json" \
+  --model openai-codex/gpt-5.6-luna \
+  --thinking max
 ```
 
-`--mpreset` resolves against `profiles:` in `~/.gjc/agent/models.yml`. A preset named in a
-request may not exist. Create it if missing, then prove it resolves before spawning a fleet:
+The preflight checks the installed Herdr/GJC help and model row, not a remembered version. For a
+configured profile, use `--preset NAME`; it must pass the ephemeral `gjc -p --mpreset ...
+--no-session --no-tools` probe before fan-out. For model nickname resolution, see
+[references/model-and-preflight.md](references/model-and-preflight.md).
+
+Create a canary tab with an explicit cwd and no focus stealing. Parse both IDs from JSON and
+verify the returned pane before launching GJC:
 
 ```bash
-gjc -p --mpreset <preset> --no-session --no-tools "reply with exactly: PRESET_OK"
+tab_json="$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" \
+  --cwd "$TARGET_REPO" --label "fleet-canary" --no-focus)" || exit 2
+tab_id="$(printf '%s' "$tab_json" | node /path/to/gjc-fleet/scripts/read-herdr-field.mjs result.tab.tab_id)" || exit 2
+pane_id="$(printf '%s' "$tab_json" | node /path/to/gjc-fleet/scripts/read-herdr-field.mjs result.root_pane.pane_id)" || exit 2
+herdr pane get "$pane_id"
+herdr pane run "$pane_id" "gjc --model openai-codex/gpt-5.6-luna --thinking max"
 ```
 
-Start one worker and confirm the whole path works before fanning out:
-
-```bash
-herdr worktree create --cwd "$PWD" --branch <branch> --base <ref> --label <label> --no-focus
-herdr pane run <pane> "gjc --mpreset <preset>"
-herdr agent get <pane>                # poll until "agent":"gjc"; allow ~30s
-TASK='<single-line self-contained assignment>' \
-  herdr pane send-text <pane> "$TASK" && herdr pane send-keys <pane> enter
-```
-
-`agent start`, `agent prompt`, and `agent wait` all fail against a GJC pane
-(`agent_not_ready`). Pane commands are the only working control surface. See
-[references/pane-control.md](references/pane-control.md).
+Wait for `agent=gjc` detection before submitting the canary order. If `gjc` is not in the
+installed `herdr agent` kinds, do not use `agent start --kind gjc`; `pane run` is the launcher.
+Use the pane submission fallback when manually detected GJC rejects `agent prompt`. Full control
+syntax is in [references/pane-control.md](references/pane-control.md).
 
 ## Workflow
 
-### 1. Preflight
+### 1. Admit the run and define the boundary
 
-Create one worktree workspace for the whole fleet. Seed it with the parent checkout's
-uncommitted state, or workers review stale code:
+- Start in `ROLE_ADMITTED` only from the exact `/skill:gjc-fleet` invocation. With no explicit
+  objective, emit the admission receipt and wait; do not perform even a broad read-only
+  inspection.
+- Validate the explicit intake payload with `scripts/intake.mjs`. Do not infer an objective from
+  the caller's cwd, repository name, branch, Git history, dirty paths, prior conversation, or
+  an existing Herdr resource. A blocked or vague intake stays at `ROLE_ADMITTED`.
+- Do not assign baseline-dirty or pre-existing worktree paths automatically. Reserve them as user
+  work; only an explicit, receipt-recorded inclusion can authorize overlap.
+- Transition to `PREFLIGHTED` only after `OBJECTIVE_ADMITTED` and only with a fresh intake receipt.
+- Require `HERDR_ENV=1` before every Herdr control operation. Outside Herdr, stop; do not
+  silently substitute a focused terminal or create a fleet elsewhere.
+- Run and read `herdr --skill`, then inspect the installed `herdr --help`/group help. Do not
+  copy syntax from this document when the binary disagrees; fail closed and record the mismatch.
+- Resolve `TARGET_REPO` with Git and `realpath`. Pass it explicitly to every
+  `tab create`, `pane split`, and `worktree create`; verify `cwd` and `foreground_cwd` from JSON.
+- Capture `herdr workspace/tab/pane/agent` inventory before creation. IDs not returned by this
+  run are user resources and are never cleanup targets.
+- Record `run_id`, versions, model/preset launch form, preflight evidence, and a NUL-safe Git
+  baseline (tracked and untracked paths plus hashes) under the external run directory.
+- Keep credentials in the approved inherited environment or GJC credential store. Secrets never
+  enter prompts, argv, `--env`, orders, result files, pane output, or logs.
 
-```bash
-git diff > /tmp/seed.patch && git -C <checkout> apply /tmp/seed.patch
-# copy untracked files the work depends on, then verify:
-diff <(git diff --stat) <(git -C <checkout> diff --stat)
-```
+### 2. Choose a safe workspace topology
 
-Install dependencies in the worktree (a fresh checkout has no `node_modules`) and start one
-shared dev server on a fixed port in the root pane. Read-only reviewers can all share it.
+Use a clean dedicated worktree when isolation is needed, or the target checkout when the user
+explicitly wants results there and file ownership is enforced. Do not automatically seed a dirty
+checkout by applying an unreviewed patch. If uncommitted work is present, reserve those paths;
+any overlap blocks the unit unless the receipt explicitly records inclusion and preservation
+proof. Never use `git reset`, `restore`, `stash`, or a broad copy to hide user work.
 
-Record a baseline of dirty files. Every later drift check compares against it.
+For every resource creation:
 
-### 2. Review fan-out (read-only, safely parallel)
+1. issue the installed command with `--cwd "$TARGET_REPO"` and `--no-focus`;
+2. parse the returned workspace/tab/root-pane or split-pane IDs with
+   `scripts/read-herdr-field.mjs`;
+3. immediately append the IDs, resolved cwd, ownership, and state to the ledger;
+4. use those opaque IDs for all later operations.
 
-Write one shared brief plus one assignment file per shard, and keep prompts single-line by
-pointing at those files. Read-only review means high parallelism is safe.
+One tab/pane per live worker keeps tracking unambiguous. Reuse only a pane that this run retired
+and verified back at a shell. Do not rely on focus or sidebar order.
 
-Bound each shard to explicit units and tell reviewers to write findings to their own file
-only. Reviewers that share nothing writable cannot conflict.
+### 3. Prove one canary path
 
-### 3. Freeze
+Launch the exact preflighted `gjc --model PROVIDER/MODEL [--thinking LEVEL]` or
+`gjc --mpreset NAME` in the returned pane. `agent start` is for supported kinds only; when
+`gjc` is absent from `herdr agent`'s installed `kinds:` list, launch with `herdr pane run` and
+poll `herdr agent get` until the pane is detected as GJC.
 
-Reviewers keep appending after they first report. Copy the reports to a frozen directory
-and have every downstream step read the frozen copy. Otherwise the fix target moves under
-you and your work orders stop matching the evidence.
+Submit one self-contained canary order and verify all of the following before fan-out:
 
-### 4. Partition
+- the pane remains at the recorded target cwd;
+- the model/title or GJC startup evidence matches the admitted launch form;
+- a real turn starts and writes its canary result;
+- `agent prompt` either works or the observed `agent_not_ready` path is handled once with
+  `pane send-text` followed by `pane send-keys ... enter`;
+- the canary result, owned-file diff, and required cheap check are inspectable.
 
-Build a graph: findings are nodes, a shared file is an edge. Connected components are
-provably file-disjoint work units, so workers can edit **one worktree concurrently** with no
-branches and no merges.
+A failed canary stops the fleet. Do not create ten more sessions to diagnose one broken launch.
 
-Split hub files (`globals.css`, `shared/ui/*`, `entities/*`) into their own unit and run it
-**alone first**. Hubs are edges to everything; leaving them in place collapses the graph into
-one giant component. See [references/partitioning.md](references/partitioning.md).
+### 4. Review, freeze, and partition
 
-### 5. Fix waves
+Fan out read-only reviewers only when their reports and output files are disjoint. Then freeze
+reports into a checksummed directory; later appends are a new review wave. Turn findings into a
+file graph, isolate hub files, and run `node scripts/check-exclusive.mjs` over only the units
+that will be concurrent. Hubs run alone first; re-partition after they land.
 
-Dispatch the hub unit alone, verify, re-emit the remaining orders against its result, then
-release the rest in parallel. Give every worker a file-exclusivity contract and an
-out-of-scope escape hatch instead of letting it reach outside its set.
-
-Poll on artifacts, not on self-reports. See
+Each write unit gets a `BRIEF.md`, an order, an exclusive exact-file section, and a private result
+path. New files are assigned before dispatch. A worker may read outside its set but must record an
+out-of-scope handoff rather than edit another unit's path. See
+[references/partitioning.md](references/partitioning.md) and
 [references/worker-prompts.md](references/worker-prompts.md).
 
-### 6. Gates the orchestrator owns
+### 5. Dispatch and track by evidence
 
-Workers run type-checks; **only you run the production build**. A worker cannot see that its
-change compiles and still breaks prerendering. Run build, a route/behavior smoke script, the
-project's own detectors, and a file-ownership audit. See
-[references/gates.md](references/gates.md).
+Keep dispatch text to one line pointing at the brief/order/result. Submit through the recognized
+agent surface with a bounded timeout; for manually detected GJC, reconcile the same pane and use
+the pane text/key fallback on `agent_not_ready`. Never resend blindly after a timeout or aborted
+wait.
 
-### 7. Retire each unit as it lands
+On every poll, record a compact ledger row containing unit, pane, lifecycle observation, result
+existence/size, owned-file progress, and last evidence time. Use bounded waits. After a long wait
+timeout, `agent_prompt_stalled`, or interrupted wait, read `agent get`, pane detection, result,
+diff, and process/cwd state; if the task is still running, continue tracking it with another
+bounded wait. A timeout is not a failed task and not a completed task.
 
-Do not let finished workers accumulate. A landed unit is retired immediately, in this order:
+Interpret statuses exactly as Herdr defines them: `working` is an observed active turn; `idle` is
+ready for input after its tab has been seen; `done` is unseen background work reaching that same
+idle state; `blocked` is a recognized approval/question UI; `unknown` is unclassified and never
+completion. For GJC alternate-screen panes, statuses and terminal output are secondary to result
+artifacts and actual owned-file changes.
 
-1. **Verify** its result file against the gates you own. A unit is not done because it said so.
-2. **Commit** it, scoped to that unit's files, with a message stating cause and evidence.
-3. **Stop** its session (`ctrl+c`, `/exit`, confirm the pane is back at a shell).
-4. **Release** its files in the ledger, so a deferred item blocked on them becomes dispatchable.
-5. **Re-emit** the remaining orders if this unit changed files other units also need.
+### 6. Verify each wave and retire units
 
-Retiring per unit is what makes the sweep resumable and keeps the pane count honest. Keep the
-workspace itself until the sweep ends; reuse a freed pane for the next unit rather than
-creating another. See [references/lifecycle.md](references/lifecycle.md).
+A worker's `FIX_DONE` line is only a claim. Verify real counts, result tables, owned-file diff,
+and evidence statuses (`live`, `gated`, or `skip`; skip is never pass). The orchestrator owns the
+production build, route/behavior smoke, project-wide detectors, ownership, baseline drift, and
+cleanup gates. Route a regression back to the owning unit rather than editing product code in the
+orchestrator.
 
-### 8. Land it and tear down
+When a unit's result and gates are proven, stop and retire only that run-created session, release
+its file ownership, and reuse its pane if useful. Preserve any `working`, `blocked`, unverified,
+or result-less unit. Do not close pre-existing user sessions or any session whose ownership is
+not in the ledger.
 
-Before overwriting any uncommitted user work, prove containment (`cmp`, marker counts, line
-counts) and leave a recoverable `git stash` — then say so.
+### 7. Clean up narrowly and write the receipt
 
-When every unit is retired, tear down what you created and nothing else: stop the shared dev
-server by recorded PID, stop remaining sessions, prove the worktree holds no unique content,
-remove it without `--force`, and report a refusal instead of escalating. Leave the user's
-workspaces, panes, and branches alone.
+Stop only PIDs and Herdr IDs created by this run. Never use `herdr server stop`, kill the main
+Herdr process, or `pkill -f`. Remove a dedicated worktree only when it has no unique content and
+removal succeeds without `--force`; otherwise preserve and report its path. Leave uncommitted
+product work available for the user.
+
+Write one `gjc-fleet-receipt/v1` receipt containing target/cwd proof, versions and launch form,
+unit counts and evidence, baseline/drift proof, resources retired/preserved, and limitations.
+Use `complete` only when every requested item and required gate is evidenced, no collision or
+unowned drift exists, user work is preserved, and cleanup is known. Otherwise report
+`incomplete` or `blocked` and continue tracking active units. See
+[references/receipt.md](references/receipt.md).
 
 ## Failure Fallback
 
-**The agent surface refuses the pane.** Expected for GJC. Confirm with `agent get` and
-`pane read`, then use `pane send-text` plus a separate `pane send-keys <pane> enter`. Submit
-once and verify from pane output; never resend blindly.
-
-**A worker emits the completion line with placeholder counts.** It copied your template
-instead of working. Make the artifact the gate: "emitting the done line before the result
-file has real findings is a failure, and `n` is a placeholder to replace with real counts."
-Reject the run and re-dispatch.
-
-**A worker is `busy` for 30+ minutes with zero file edits.** It is looping in analysis.
-Measure progress as *files changed in its owned set*, not elapsed time or status. Restarting
-the session with an edit-first directive is faster than steering it — verified twice
-(0/9 files in 50 minutes, then 9/9 in 5 minutes after restart).
-
-**`pane read` shows stale activity.** GJC runs on the terminal's alternate screen, so rows
-never enter Herdr's host scrollback and `--lines` cannot recover them. Poll cheap signals
-instead: `⟦esc⟧` or `(busy)` for liveness, plus the result file on disk. If you need a full
-response, ask the worker to write it to a file and read the file.
-
-**`agent_status` says `done` but nothing happened.** It is unreliable for GJC panes because
-Herdr attaches no agent label. Trust artifacts.
-
-**`tsc` passes and the build fails.** The reason this skill reserves the build for the
-orchestrator. Route the regression back to the file's owner with the build log excerpt.
-
-**Routes 404 after a directory rename.** A long-lived dev server keeps a stale route
-manifest. Restart it before believing a route regression.
-
-**Launcher scripts exit silently.** Under `set -e`, both `[ cond ] && break` as a loop's last
-command and a failing command substitution abort the script. Use `if ... then break; fi` and
-`$( { cmd || true; } | ... )`.
-
-**You catch yourself explaining the plan instead of running it.** The stance above was
-violated. Preflight and the first dispatch are actions, not proposals. Narrating phases costs
-the user a round-trip and tells them nothing they did not already know by invoking the skill.
-
-**Panes and sessions are piling up.** You skipped retirement. A finished unit that is not
-verified, committed, stopped, and released leaves the sweep unresumable and its deferred items
-blocked on files nobody owns any more. Retire on landing, not at the end.
-
-**Never use unscoped `pkill -f`.** In the session that produced this skill, a pattern kill
-intended for a temporary server coincided with the disappearance of two workspaces the
-orchestrator did not create, and there were no logs to prove otherwise. Record PIDs when you
-start processes and kill those PIDs. Stop only what you started.
+- **`HERDR_ENV` missing or changed:** stop before any Herdr command. This skill cannot safely
+  control a non-Herdr terminal.
+- **Installed help or `herdr --skill` differs:** run the bundled preflight again, capture the
+  exact missing surface, and stop. Do not guess old flags or IDs.
+- **Model nickname is not a preset:** run `gjc --list-models <name>`, choose one exact
+  provider/model row and advertised thinking level, or stop. Never fall back to `default`.
+- **`agent start --kind gjc` rejected:** expected when `gjc` is absent from `kinds:`. Use
+  `pane run` in the JSON-returned pane and wait for detection; do not relabel another agent.
+- **Manual GJC reports `agent_not_ready`:** confirm the same pane with `agent get`/`pane read`,
+  then send the one-line prompt with `pane send-text` and one `pane send-keys ... enter`. Verify
+  the turn started; do not resend text.
+- **Wait timeout, `agent_prompt_stalled`, or aborted wait:** read state, pane, artifact, diff,
+  and cwd; continue tracking a still-running task with a fresh bounded wait. Never infer failure
+  or completion from the timeout alone.
+- **`idle`/`done` with no result:** unverified, not complete. Check owned-file progress and ask
+  for a durable artifact only as an alternate-screen fallback.
+- **Stale/empty pane output:** GJC may be on an alternate screen. Use result files, fresh logs,
+  process state, and owned-file changes; request a temporary Markdown transcript only after a
+  terminal read fails.
+- **Ownership overlap or unowned drift:** stop the affected wave, preserve both changes, narrow
+  or serialize the order, and re-run the verifier. Never restore one worker over another.
+- **Secret required:** use inherited credentials, a stored selector, or a 0600 file outside the
+  repo; never put the value in Herdr/GJC input or output.
+- **Cleanup ambiguity:** preserve the resource and mark it running/unknown. Close only IDs in the
+  ledger that this run created; a completed unit can be cleaned while active units remain.
+- **Worker echoes placeholders or skips silently:** reject the result, keep the pane or reuse it
+  only after a clean stop, and dispatch a sharper edit-first order. No real artifact means no
+  completion.
 
 ## Examples
 
-Poll a fleet cheaply — liveness from either running marker, progress from the artifact:
+Resolve and admit a Luna model rather than treating a nickname as a preset:
 
 ```bash
-while read -r id pane file; do
-  snap=$( { herdr pane read "$pane" --source detection --lines 40 2>/dev/null || true; } )
-  printf '%s' "$snap" | grep -qE '⟦esc⟧|\(busy\)' && st=WORK || st=IDLE
-  [ -f "reports/$file.md" ] && n="$(wc -l < "reports/$file.md")L" || n=-
-  printf '%-6s %-8s %-5s %s\n' "$id" "$pane" "$st" "$n"
-done < fleet.tsv
+gjc --list-models LunaMaxxing
+gjc --list-models gpt-5.6-luna
+node /path/to/gjc-fleet/scripts/preflight.mjs \
+  --repo "$TARGET_REPO" --intake-receipt "$RUN_DIR/intake.json" \
+  --model openai-codex/gpt-5.6-luna --thinking max
 ```
 
-Measure a stalled worker by edits in its owned files, not by status:
+Create a background pane without stealing focus and parse its actual ID:
 
 ```bash
-node -e '
-const fs=require("fs"),cp=require("child_process");
-const owned=[...fs.readFileSync(process.argv[1],"utf8")
-  .matchAll(/^- `(.+?)`$/gm)].map(m=>m[1]);
-const dirty=cp.execSync("git status --porcelain",{encoding:"utf8"})
-  .split("\n").map(l=>l.slice(3).trim()).filter(Boolean);
-console.log(owned.filter(f=>dirty.includes(f)).length+"/"+owned.length);
-' orders/f3-order.md
+response="$(herdr pane split --pane "$PARENT_PANE" --direction right \
+  --cwd "$TARGET_REPO" --no-focus)" || exit 2
+worker_pane="$(printf '%s' "$response" |
+  node /path/to/gjc-fleet/scripts/read-herdr-field.mjs result.pane.pane_id)" || exit 2
+herdr pane run "$worker_pane" "gjc --model openai-codex/gpt-5.6-luna --thinking max"
 ```
 
-Audit that nobody wrote outside its owned set. Use `grep -F`: real paths contain `[groupId]`,
-which a regex reads as a character class and silently reports as unowned.
+Handle the known manual-detection prompt edge and then reconcile a bounded wait:
 
 ```bash
-git status --porcelain -- src | sed 's/^...//' | while read -r f; do
-  owners=$(grep -lF -- "- \`$f\`" orders/*-order.md | xargs -n1 basename | tr '\n' ',')
-  printf '%-64s %s\n' "$f" "${owners:-UNOWNED}"
-done
+if ! herdr agent prompt "$worker_pane" "$PROMPT" --wait --timeout 5000; then
+  herdr agent get "$worker_pane"
+  herdr pane send-text "$worker_pane" "$PROMPT" || exit 2
+  herdr pane send-keys "$worker_pane" enter || exit 2
+fi
+if ! herdr agent wait "$worker_pane" --timeout 120000; then
+  herdr agent get "$worker_pane"
+  herdr pane read "$worker_pane" --source detection --lines 40
+  # Inspect result and owned-file diff, then continue polling if still working.
+fi
 ```
 
-Prove a partition before trusting it. Any intersection between concurrently running workers
-means the split is wrong — this check caught a real defect where a hub unit's file set bled
-into two later units:
+Prove a concurrent wave and finish with a factual receipt:
 
 ```bash
-node scripts/check-exclusive.mjs orders/f2-order.md orders/f3-order.md \
-                                 orders/f4-order.md orders/f5-order.md
-# exit 0 = disjoint, 1 = overlap (names the shared files), 2 = usage error
+node /path/to/gjc-fleet/scripts/check-exclusive.mjs \
+  "$RUN_DIR/orders/f2-order.md" "$RUN_DIR/orders/f3-order.md"
+# Run the build/smoke/ownership/baseline gates, retire only verified resources,
+# then write $RUN_DIR/receipt.json with state complete/incomplete/blocked.
 ```
-
-Compare only units that run at the same time. A serialized unit — a hub pass — is not a
-conflict.
-
-Longer detail: [references/pane-control.md](references/pane-control.md),
-[references/partitioning.md](references/partitioning.md),
-[references/worker-prompts.md](references/worker-prompts.md),
-[references/gates.md](references/gates.md),
-[references/lifecycle.md](references/lifecycle.md).

@@ -1,108 +1,101 @@
-# Gates the orchestrator owns
+# Gates and evidence
 
-Workers verify their own slice. The orchestrator owns everything that is global, expensive, or
-capable of contradicting a worker's self-report.
+A worker's completion line is a claim. The orchestrator turns it into a fact by checking the
+result artifact, actual file ownership, and global behavior. Never report a unit complete from a
+status string alone.
 
-## Why the build cannot be delegated
+## Phase gates
 
-A worker added URL state to a route and reported a passing type-check. It was telling the truth
-— and the production build was broken:
+The state machine is a safety gate, not a reporting label:
 
-```
-⨯ useSearchParams() should be wrapped in a suspense boundary at page "/monitoring"
-Error occurred prerendering page "/monitoring"
-```
-
-Type-checking cannot see prerender-time bailouts. Every worker reported `pass`; the fleet was
-red. Run the real build yourself after each wave, before releasing the next.
-
-Route the regression back to the file's **owner**, with the log excerpt and a pointer to an
-existing correct pattern in the same repo. Owner-routing preserves the partition; fixing it
-yourself does not.
-
-## Gate set
-
-| Gate | Who | Notes |
+| Phase | Required evidence | Forbidden actions |
 | --- | --- | --- |
-| type-check | worker + orchestrator | cheap, read-only, safe concurrently |
-| production build | orchestrator only | the gate that catches what type-checks cannot |
-| behavior/route smoke | orchestrator | script it; expectations drift as fixes land |
-| project detectors | worker + orchestrator | run across the union of changed files |
-| file-ownership audit | orchestrator | proves the partition held |
-| drift vs baseline | orchestrator | catches edits nobody was assigned |
+| `DORMANT` | no role admission | all repository/worktree reads and all commands/resources |
+| `ROLE_ADMITTED` | role receipt with `execution_authorized: false` | objective inference, target discovery, preflight, mutation, dispatch, resource creation |
+| `OBJECTIVE_ADMITTED` | validated explicit objective, target, acceptance criteria, and mutation boundary | assigning dirty/pre-existing paths automatically |
+| `PREFLIGHTED` | fresh Herdr/GJC help, versions, model/preset, and target-root evidence | worker/resource creation before the receipt is recorded |
+| `DISPATCHING` | returned resource IDs and ownership ledger rows | guessed IDs, unscoped panes, overlap, or unrecorded processes |
+| `TRACKING` | bounded liveness polls and durable result evidence | completion from `done`, `idle`, timeout, or stale pane text alone |
+| `VERIFYING` | changed-path ownership, gates, baseline preservation, and cleanup evidence | hiding drift with reset, restore, stash, or broad copy |
+| `RECEIPT` | one factual receipt with limitations | claiming `complete` with unknown, skipped, or preserved active work |
 
-## Ownership audit
+No gate is allowed to promote a run from `ROLE_ADMITTED` to `OBJECTIVE_ADMITTED`. The explicit
+intake payload is the only source for the objective and boundary; current repository state,
+worktree labels, Git history, dirty files, and prior conversation are observations or user work,
+never authorization.
 
-```bash
-git status --porcelain -- src | sed 's/^...//' | while read -r f; do
-  owners=$(grep -lF -- "- \`$f\`" orders/*-order.md 2>/dev/null \
-    | xargs -n1 basename 2>/dev/null | sed 's/-order.md//' | tr '\n' ',')
-  printf '  %-64s %s\n' "$f" "${owners:-UNOWNED}"
-done
-```
+## Evidence status vocabulary
 
-Two bugs this script had, both of which produced false alarms — fix them before trusting it:
+Use exactly one status for every check:
 
-- **Use `grep -F`.** Real paths contain `[groupId]`, which a regex reads as a character class,
-  so the owning order never matches and the file reports as unowned.
-- **Glob every order file.** A glob of `f*-order.md` silently skipped a later `ds-order.md` and
-  reported that worker's own files as unauthorized.
+- **live** — the command or surface actually ran against the target code/service/browser and
+  left inspectable evidence (exit code, assertion output, URL/screenshot, or log path);
+- **gated** — the check was intentionally reserved for the orchestrator and ran after the wave;
+- **skip** — it did not run, with a concrete reason. `skip` is not `pass`.
 
-Expect exactly one owner per changed file. Zero means unassigned work or an auditor bug. Two
-means the partition is broken — unless the units were serialized.
+`done`, `idle`, and a worker's `pass` text are not verification statuses. A claim without
+artifacts is unverified.
 
-Authorized new files legitimately have no owner. Record them so they stop showing up as noise.
+## Gate ownership
 
-## Smoke expectations drift
+| Gate | Owner | Required evidence |
+| --- | --- | --- |
+| Type-check of owned files | worker and orchestrator when practical | command, exit status, scope |
+| Production build/prerender | orchestrator only | fresh command, exit status, build log |
+| Behavior/route smoke | orchestrator | endpoint/assertion or browser evidence |
+| Project detectors/lint | worker for slice, orchestrator for union | exact command and result |
+| File ownership | orchestrator | changed paths mapped to one unit or authorized artifact |
+| Baseline drift | orchestrator | before/after status and reserved-path comparison |
+| Cleanup | orchestrator | every created resource retired; preserved active resources block `complete` |
 
-Hardcoded expectations rot as fixes land. A `/` route changed from 307 to 308 because a worker
-correctly switched a temporary redirect to a permanent one; the stale expectation reported a
-failure that was actually a fix. Script the smoke test, keep expectations in it, and update
-them in the same commit as the behavior change.
+Run the production build only from a clean, current server/build state. A long-lived dev server
+can retain a stale route manifest after a directory rename; restart only the PID recorded by
+this run before believing a route regression. Do not use an unscoped process kill.
 
-After a route-structure change, also assert the new invariants the structure makes possible —
-for example that a hierarchically inconsistent path 404s.
+If a gate fails, re-run it once in isolation to distinguish a transient environment failure
+from a reproducible regression. A second failure is real evidence. Route the fix to the owning
+unit and re-emit the wave; the orchestrator does not silently edit a worker's product files.
 
-## Serving the built app
+## Ownership and drift checks
 
-Verify against a server that reflects the change:
+At each wave boundary, enumerate all changed paths with a NUL-safe Git status. Compare against:
 
-- A long-lived dev server keeps a **stale route manifest** across directory renames and will
-  404 new routes that build fine. Restart it before believing a route regression.
-- With `output: "standalone"`, `next start` does not serve. Run the generated server and copy
-  the static assets next to it first:
+1. the baseline paths recorded before the fleet;
+2. every live unit's declared exclusive set;
+3. the run's explicitly authorized result/artifact paths.
 
-```bash
-cp -R .next/static .next/standalone/.next/ && cp -R public .next/standalone/
-(cd .next/standalone && PORT=<port> HOSTNAME=127.0.0.1 node server.js &)
-```
+A baseline path that changed is user-work drift and blocks completion unless that path was
+explicitly assigned. A changed product path with no owner is unauthorized. A path with two live
+owners is a collision. Preserve the diffs and stop rather than running `restore`, `reset`, or
+another destructive cleanup.
 
-Record that PID and kill that PID.
+For path names containing brackets or spaces, compare exact strings; do not use an unescaped
+regular expression or a display-order glob. The bundled exclusive verifier uses exact markdown
+paths, and the receipt must list authorized new files separately.
 
-## Transient gate failures
+## Behavior evidence
 
-A type-check reported exit 2 immediately after a dependency install, then exit 0 on a clean
-re-run. Re-run a failing gate once in isolation before acting on it — but never treat a
-reproducible failure as transient.
+A route or UI claim needs a live assertion, not a successful type-check. Use a fresh built server
+when route structure changed, record its PID and port, and prove the expected status/body or
+browser state. If browser access is unavailable, label the check `skip` or `gated` with the
+limitation; do not call a code read a live browser proof.
 
-## Landing over user work
+Alternate-screen terminal text is not durable evidence. Prefer worker result files, build logs,
+smoke output, screenshots, and artifact files. If an artifact is referenced by a URI, preserve
+the URI in the receipt and verify it can be read; if it cannot, downgrade the claim.
 
-Before overwriting uncommitted work you did not create, prove containment rather than assuming
-your branch supersedes it:
+## Completion rule
 
-```bash
-cmp -s <branch-version> <working-copy> && echo identical
-diff <(git show <branch>:<file>) <file> | grep -c '^>'   # lines only in the working copy
-```
+The final receipt may say `complete` only when:
 
-For an evolved file, count the markers of the original work in both versions and compare line
-counts; equal-or-higher counts plus a strict superset in size is real evidence of preservation.
+- every requested item is fixed or withdrawn with evidence;
+- every out-of-scope handoff is resolved or explicitly reported as blocking;
+- all required global gates are `live` or `gated` with evidence, with no unreviewed `skip`;
+- no unowned or colliding product drift exists;
+- baseline user work is byte/content-preserved;
+- every requested unit is retired; a deliberately preserved running/blocked/unknown unit makes
+  the receipt `incomplete` or `blocked`, even when its resource is listed with an owner and next
+  action.
 
-Then stash with a descriptive message so recovery is possible, merge, and tell the user the
-stash exists and why. Prove, preserve, disclose — in that order.
-
-## Ledger
-
-If the repository keeps a coordination ledger, append what was fixed, what was withdrawn, what
-remains and why, and the traps discovered. Record the traps especially: "restart the dev server
-after route-structure changes" is the kind of finding the next session pays for again otherwise.
+Otherwise use `incomplete` or `blocked`, name the exact evidence gap, and keep working sessions
+alive when they still have active work.

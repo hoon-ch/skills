@@ -1,119 +1,121 @@
-# Fleet lifecycle: ledger, retirement, teardown
+# Fleet lifecycle: ledger, retirement, cleanup
 
-The orchestrator creates real resources — panes, sessions, servers, worktrees, branches — and
-is responsible for every one of them. Track them from creation, retire units as they land, and
-tear down only what you created.
+The orchestrator creates resources and owns their lifetime. A resource is disposable only when
+its exact ID is in this run's ledger and its state is known.
 
-## Resource ledger
+## Admission state machine
 
-Write it as you create, not from memory. A flat TSV is enough and stays greppable:
+The lifecycle is a strict one-way state machine:
 
-```
-# fleet.tsv — id, pane, order file, state
-f1   w44:p9   f1-order   retired
-f2   w44:pA   f2-order   running
-f3   w44:pB   f3-order   running
+```text
+DORMANT -> ROLE_ADMITTED -> OBJECTIVE_ADMITTED -> PREFLIGHTED -> DISPATCHING
+         -> TRACKING -> VERIFYING -> RECEIPT
 ```
 
-Record separately, in the same file or beside it:
+`DORMANT` means no fleet role has been admitted. The exact `/skill:gjc-fleet` invocation moves
+the run to `ROLE_ADMITTED`; it does not authorize execution. With no explicit objective, the run
+ends at that state with a role receipt. No repository, worktree, Git history, dirty-path,
+focused-pane, Herdr, or model inspection is allowed before `OBJECTIVE_ADMITTED`, and no command,
+run directory, product mutation, worker dispatch, tab, pane, worktree, or session may be created.
 
-- the workspace id returned by `worktree create` and its checkout path (read from the
-  response, never derive it from the branch or label)
-- the PID and port of every server you start
-- the baseline of dirty files at each wave boundary
-- authorized new files, so the ownership audit stops flagging them
+`OBJECTIVE_ADMITTED` requires an explicit actionable objective, target repository, non-empty
+acceptance criteria, and mutation boundary. The intake helper validates those fields without
+discovering them from the current checkout. A vague or incomplete request remains
+`ROLE_ADMITTED` and records blockers. Only after this transition may read-only target
+preflight and baseline capture begin.
 
-Anything not in the ledger is not yours to stop.
+`PREFLIGHTED` records fresh installed Herdr/GJC evidence and a resolved launch form. Only then
+may resources be created in `DISPATCHING`. `TRACKING`, `VERIFYING`, and `RECEIPT` require the
+durable evidence and cleanup rules below; a Herdr status cannot skip a phase.
 
-## Retiring a unit
+Existing resources and baseline-dirty paths are user work. Reserve them before dispatch and
+never auto-assign them. A later explicit inclusion must name the path and preservation proof in
+the receipt; an observed dirty path alone never becomes an assignment.
 
-A worker's completion line is a claim. Retirement is the process of turning it into a fact.
+## Ledger before memory
+
+Create a run directory outside product files and append records as actions succeed. A JSONL or
+TSV ledger is enough; each row must include:
+
+```text
+run_id  unit_id  workspace_id  tab_id  pane_id  requested_cwd  resolved_cwd  result_path  state  created_by_run
+```
+
+Also record:
+
+- the baseline Git status and hashes, including untracked paths;
+- all Herdr IDs present before the run;
+- the exact preflight output summary and resolved model/preset launch form;
+- every server PID/port started by this run;
+- frozen report checksums and order file paths;
+- authorized new product files and their owner.
+
+Write a ledger row immediately after parsing each JSON creation response. Never derive an ID from
+labels, tab numbers, branch names, or a guessed workspace path.
+
+## Preserve user work
+
+The default is no automatic commit, push, stash, reset, restore, branch deletion, or broad copy.
+Workers leave product edits in the selected checkout/worktree for the user to inspect. The
+orchestrator compares the final state with the baseline and reports all uncommitted paths.
+
+If the target checkout was dirty, reserve those paths before dispatch. Do not overwrite or
+reformat them. If a dirty path must be part of the assignment, record the explicit inclusion and
+its preservation evidence in the receipt. Never “clean” a conflict by taking a snapshot and
+silently restoring the user's version later.
+
+A dedicated worktree is safer for a clean baseline, but its uncommitted changes are still user
+work. Remove it only when it contains no unique content and `herdr worktree remove` succeeds
+without `--force`. If it contains product changes, leave it recoverable and report its absolute
+path and branch; do not delete it just to make cleanup look green.
+
+## Retire a completed unit
+
+Retire only after all of these are true:
+
+1. The result file is non-empty, has real counts, and names every skipped/withdrawn/out-of-scope
+   item.
+2. Actual changed paths are within the unit's exclusive set and baseline user paths are intact.
+3. Worker checks and orchestrator gates have evidence in the receipt.
+4. The unit is no longer doing work; reconcile `agent get`, pane output, result, and diff rather
+   than trusting `done`.
+
+Then stop only the pane/session created by this run, release its files in the ledger, and reuse
+its pane for the next serialized unit if appropriate:
 
 ```bash
-# 1. verify — gates you own, not the worker's self-report
-bunx tsc --noEmit; <build command>; ./smoke.sh; ./audit-ownership.sh
-
-# 2. commit — scoped to this unit's files
-git add <unit files> && git commit -F <message with cause and evidence>
-
-# 3. stop the session, keep the pane
-herdr pane send-keys <pane> ctrl+c   # twice, with a pause
-herdr pane send-text <pane> "/exit" && herdr pane send-keys <pane> enter
-herdr agent get <pane>               # expect no agent: shell prompt
-
-# 4. mark retired in the ledger, release its files
-
-# 5. re-emit remaining orders if this unit touched files others need
+herdr pane send-keys "$pane_id" ctrl+c
+sleep 1
+herdr pane send-keys "$pane_id" ctrl+c
+herdr pane send-text "$pane_id" '/exit'
+herdr pane send-keys "$pane_id" enter
 ```
 
-Why each step matters:
+Re-read the exact pane. Close the recorded pane/tab only after the shell is back and the resource
+is not running a task. Do not commit as part of retirement unless the user explicitly requested
+commits.
 
-- **Verify before commit.** Two workers reported `pass` on a change that broke the production
-  build. Committing an unverified claim buries the regression under later work.
-- **Commit per unit.** One commit per unit keeps blame legible and makes a bad unit revertable
-  without touching its siblings.
-- **Stop the session.** A finished worker still holds a model context and can be re-prompted by
-  accident. Stopping it also frees the pane for the next unit — reuse beats creating a
-  nineteenth pane.
-- **Release the files.** Deferred out-of-scope items are usually blocked on a file another unit
-  owned. The moment that unit retires, those items become dispatchable. In the run this skill
-  came from, 16 deferrals were closed exactly this way.
-- **Re-emit.** Orders generated before a hub unit landed describe the pre-hub file set. Later
-  waves must be regenerated against the current state or they will fight the hub's work.
+## Keep active work alive
 
-## Reusing a pane
+A unit with `working` liveness, a changing owned-file diff, a missing result, or an unresolved
+blocked question is not complete. Preserve its pane/session and record it as `running` or
+`blocked`; do not close it during cleanup. A wait timeout or interrupted wait requires a state
+read and running-task check before any stop/resubmit decision.
 
-A retired pane sits at a shell prompt in the right directory, so the next unit costs one
-`pane run`:
+Completed units are cleaned individually. This prevents finished sessions from consuming panes
+and prevents a final sweep from accidentally killing work that is still progressing.
 
-```bash
-herdr pane run <pane> "gjc --mpreset <preset>"
-# poll agent get until "agent":"gjc", then send-text + send-keys enter
-```
+## Teardown boundary
 
-This is also the recovery path for a wedged worker: same pane, fresh session, sharper
-directive. Verified faster than steering a session stuck in an analysis loop.
+After all requested units are retired or explicitly preserved:
 
-## Resumability
+- stop only PIDs recorded by this run;
+- close only pane/tab/workspace IDs created by this run;
+- never run `herdr server stop`, kill the main Herdr process, or use `pkill -f`;
+- never close a user's pre-existing session, even if its label resembles this run;
+- remove an orchestrator-created worktree only after proving it has no unique changes, and never
+  pass `--force` to silence refusal;
+- if cleanup refuses, report the exact resource and evidence instead of escalating.
 
-Retiring per unit is what makes the whole sweep survivable. If the orchestrator session dies
-mid-sweep, the recovery state is on disk: the ledger says which units retired, the commits
-prove it, and the frozen input set plus the order files say what remains. Nothing depends on
-conversation memory.
-
-Keep an append-only ledger in the repository if it has one (a coordination document), so the
-next session inherits what was fixed, what was withdrawn, what remains and why, and which
-traps were discovered.
-
-## Teardown
-
-Only after every unit is retired.
-
-```bash
-kill <recorded server PID>            # never pkill -f
-# stop any remaining sessions, then prove the worktree holds nothing unique:
-git -C <checkout> status --porcelain
-cmp -s <checkout>/<file> <origin>/<file>   # for each remaining dirty file
-herdr worktree remove --workspace <id>     # no --force
-git worktree list --porcelain              # confirm
-```
-
-Rules that are not negotiable:
-
-- **Never `pkill -f`.** A pattern kill intended for a temporary server coincided with two
-  workspaces disappearing that the orchestrator did not create, with no logs to prove
-  otherwise. Kill recorded PIDs.
-- **Prove before deleting.** Compare each remaining dirty file byte-for-byte against the origin
-  checkout. Delete only proven duplicates; that is what lets `worktree remove` succeed without
-  `--force`.
-- **Report a refusal, do not escalate.** If removal refuses, say so with the evidence and stop.
-- **Branch deletion is separate.** It requires explicit intent even when the branch is merged.
-- **Touch nothing you did not create.** Other workspaces, panes, and servers belong to the user
-  or to other sessions.
-
-## Interrupted teardown
-
-If the user stops the sweep early, do not silently abandon the fleet. Report what is running,
-what is committed, and what is uncommitted; then either retire the finished units and leave the
-rest, or tear down completely — the user's call. Leaving nineteen live sessions and a dev server
-behind without saying so is the failure mode to avoid.
+If the orchestrator is interrupted, leave a receipt with `running`, `blocked`, `retired`, and
+`unverified` units. A recoverable active run is safer than an unscoped kill or a false complete.
