@@ -38,6 +38,7 @@ npx skills add hoon-ch/skills -g \
   --skill crabbox-proxmox \
   --skill gjc-fleet \
   --skill design-taste-frontend \
+  --skill explain-me \
   --yes
 ```
 
@@ -75,6 +76,7 @@ npx skills add hoon-ch/skills -g --list
 | `crabbox-proxmox` | Proxmox 기반 격리 VM에서 build, run, debug, browser proof를 수행하고 Compose·database·queue 같은 인프라까지 함께 띄워야 할 때 씁니다. |
 | `design-taste-frontend` | landing page, portfolio, 리디자인 작업에서 템플릿처럼 보이는 뻔한 AI 결과물을 피해야 할 때 씁니다. |
 | `gjc-fleet` | Herdr 세션(`HERDR_ENV=1`) 안에서 넓은 범위의 작업을 여러 GJC 워커 세션으로 나눠 오케스트레이션하고, 병렬 워커가 서로 충돌하지 않도록 분할해야 할 때 씁니다. |
+| `explain-me` | 저장소 온보딩, 아키텍처 리뷰, 요청/데이터 흐름 추적, 배포 구조, 변경 전후를 근거가 추적되는 시각 설명으로 만들 때 씁니다. |
 
 ## Maintainer Workflow
 
