@@ -1,0 +1,4 @@
+interface:
+  display_name: "Explain Me"
+  short_description: "Evidence-backed visual system explainers"
+  default_prompt: "Use $explain-me to inspect this repository and produce an evidence-backed visual explainer for a mixed technical audience."
