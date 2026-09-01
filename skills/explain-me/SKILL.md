@@ -49,8 +49,7 @@ Default to `mixed`: plain-language framing with exact technical labels. Ask a
 question only when a missing answer would materially change the system boundary;
 otherwise choose a bounded scope and disclose it.
 
-Read `references/mode-router.md` when mode selection or view decomposition is not
-obvious.
+Read `references/protocol.md#mode-router` when mode selection or view decomposition is not obvious.
 
 ### Non-negotiable truth model
 
@@ -72,7 +71,7 @@ time. File claims need paths and the narrowest useful line range when line
 locations are available. Inferences must state their reasoning in the claim and
 cite the supporting claims or sources.
 
-Read `references/evidence-contract.md` before authoring the ledger.
+Read `references/protocol.md#evidence-contract` before authoring the ledger.
 
 ### Repository inspection workflow
 
@@ -123,8 +122,7 @@ Distinguish source of truth, durable operational state, transport, cache, and
 rebuildable derived views. An edge is not proven just because two components
 coexist in the same manifest.
 
-Read `references/analysis-playbook.md` for ecosystem-specific evidence patterns
-and bounded inspection order.
+Read `references/protocol.md#analysis-playbook` for ecosystem-specific evidence patterns and bounded inspection order.
 
 ### 4. Build the ledger before the picture
 
@@ -184,8 +182,7 @@ Show:
 Only `review` mode requires strengths, risks, and ordered next moves by default.
 Other modes include them only when they materially help the request.
 
-Read `references/visual-contract.md` before drawing or using a renderer. Load
-`references/diagram-grammar.md` when authoring or repairing connector geometry.
+Read `references/protocol.md#visual-contract` before drawing or using a renderer. Use the adjacent diagram-grammar section when authoring or repairing connector geometry.
 
 ### 7. Verify before handoff
 
@@ -212,8 +209,7 @@ Re-check the highest-impact finding and the main path against the ledger after
 the visual is final. Do not edit a validated artifact afterward without
 validating again.
 
-Read `references/output-contract.md` for exact handoff language and partial-result
-rules.
+Read `references/protocol.md#output-contract` for exact handoff language and partial-result rules.
 
 ### Security and privacy
 
@@ -239,7 +235,6 @@ When evidence is incomplete, still produce the most useful bounded result:
 - never fill visual gaps with plausible infrastructure.
 
 A smaller truthful map is better than a comprehensive fictional one.
-
 
 ## Examples
 
