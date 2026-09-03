@@ -76,7 +76,7 @@ All three install surfaces expose the same published skills from `skills/`.
 | `crabbox-proxmox` | You need an isolated Proxmox-backed remote-dev VM to build, run, debug, or browser-prove a task, including adjacent infrastructure such as Compose, databases, and queues. |
 | `design-taste-frontend` | You are building or redesigning a landing page, portfolio, or marketing site and need to avoid templated, obviously-AI output. |
 | `gjc-fleet` | You are inside a Herdr session (`HERDR_ENV=1`) and need to orchestrate many GJC worker sessions across a wide surface, partitioning the work so parallel workers cannot conflict. |
-| `explain-me` | You need an evidence-backed visual explainer for repository onboarding, architecture review, request/data-flow tracing, deployment mapping, or before/after system changes. |
+| `explain-me` | You need to turn a technical topic, codebase, API interaction, data flow, or lifecycle into a dead-simple, picture-first HTML explainer using ELI5 framing and Archify's typed, validated diagrams. |
 
 ## Maintainer Workflow
 
@@ -145,7 +145,7 @@ For review, research, and delegation workflows:
 The repository is a source for installable agent skills, not a prompt dump.
 Install from it when you want the current Plane, UI divergence, `apps/web` FSD,
 Harbor operations, transcript-derived lecture-note, Claude Code review/research,
-or evidence-backed system-explainer guidance available in Codex or Claude Code.
+or ELI5 + Archify picture-explainer guidance available in Codex or Claude Code.
 
 ```text
 .
