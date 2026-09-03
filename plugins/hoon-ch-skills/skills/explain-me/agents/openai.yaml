@@ -1,4 +1,4 @@
 interface:
   display_name: "Explain Me"
-  short_description: "Evidence-backed visual system explainers"
-  default_prompt: "Use $explain-me to inspect this repository and produce an evidence-backed visual explainer for a mixed technical audience."
+  short_description: "ELI5 explanations rendered through Archify"
+  default_prompt: "Use $explain-me to turn this topic or system into a dead-simple, picture-first HTML explainer using the appropriate Archify diagram type."
