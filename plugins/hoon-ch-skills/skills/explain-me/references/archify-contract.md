@@ -64,7 +64,7 @@ For repository-backed architecture diagrams, use the installed version's
 - Keep exact product names, identifiers, protocols, paths, and environment names.
 - Use the requested language for authored content; renderer-owned UI may have a
   more limited locale surface.
-- Static is the default. Motion is opt-in.
+- Static is the default. Motion is opt-in and requires explicit user request.
 - Use examples for field shape, never for facts or IDs.
 - Let diagnostics name the geometry problem and supported repair.
 - Never accept an edge crossing an unrelated opaque node or a label masking a
@@ -85,6 +85,22 @@ file proximity.
 Keep a small source list outside the typed candidate unless the schema explicitly
 provides a place for it. This prevents Explain Me from inventing fields that make
 the candidate invalid.
+
+Before facts or source notes enter a candidate, `sources.md`, screenshot, or
+handoff artifact, sanitize them:
+
+- never include secret, token, password, credential, private-key, cookie, session,
+  or authorization-header values;
+- record credential purpose or existence rather than its value;
+- prefer file-and-line references and short paraphrases over raw configuration,
+  logs, or terminal output;
+- redact personal data and sensitive runtime payloads;
+- for artifacts leaving the current trust boundary, redact internal hostnames,
+  private IPs, usernames, filesystem paths, and deployment-specific identifiers
+  unless the user explicitly requests publication of those details.
+
+These publication rules apply independently of Archify schema validity: a valid
+candidate can still be unsafe to publish if it contains sensitive inspected data.
 
 ## Proof boundaries
 
