@@ -26,8 +26,8 @@ For repository-backed explanations, add a short `sources.md` only when the user
 needs traceability or the handoff would otherwise be hard to verify.
 
 The picture carries the explanation. Do not prepend a long report. Static output
-is the default; use motion only when the user explicitly asks for a demo or when
-ordered change cannot be understood from a static frame.
+is the default. Enable motion only when the user explicitly asks for animation,
+a demo, presentation behavior, or another motion-based output.
 
 ## Workflow
 
@@ -87,6 +87,20 @@ before drawing:
 Do not infer causality from filenames, directory proximity, or components merely
 appearing in the same manifest. Do not run untrusted project code, installers,
 migrations, or deployment commands just to obtain a diagram.
+
+Before authoring the candidate, `sources.md`, screenshots, or any handoff artifact,
+sanitize inspected material:
+
+- never copy secret, token, password, credential, private-key, cookie, session, or
+  authorization-header values;
+- describe that a credential exists and what it controls, never its value;
+- prefer file-and-line references plus short paraphrases over raw configuration or
+  command-output excerpts;
+- redact personal data and sensitive runtime payloads;
+- when an artifact leaves the current trust boundary, redact internal hostnames,
+  private IPs, usernames, filesystem paths, and deployment-specific identifiers
+  unless the user explicitly wants those details published;
+- apply the same rules to logs, screenshots, terminal output, and `sources.md`.
 
 Keep source notes outside the Archify candidate unless the selected schema
 explicitly supports them. Do not invent JSON fields. If a material fact cannot be
@@ -202,7 +216,8 @@ In fallback mode:
 - do not claim Archify schema validation, showcase acceptance, delivery receipts,
   or browser evidence that was not produced;
 - keep the artifact static and dependency-free;
-- preserve source-grounding and exact technical names;
+- preserve source-grounding and exact technical names subject to the redaction and
+  publication-boundary rules above;
 - state that the result is a manual fallback rather than validated Archify output;
 - return the useful partial artifact instead of inventing missing facts.
 
