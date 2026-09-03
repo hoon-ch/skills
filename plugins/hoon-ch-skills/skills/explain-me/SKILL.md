@@ -13,8 +13,9 @@ modeled, rendered, checked, and delivered**.
 
 ## Quick Start
 
-Default to one self-contained `explainer.html` with inline SVG. The page should
-answer, in this order:
+Default to one Archify-delivered, self-contained `explainer.html` with inline
+SVG. Through its title, diagram, labels, and only schema-supported cards or
+views, the page should answer:
 
 1. **What is it?** — one plain-language sentence.
 2. **How does it work?** — one dominant diagram.
@@ -129,7 +130,26 @@ When an Archify package is available:
 
 Do not copy an existing example's facts, IDs, or visual story.
 
-### 6. Render through Archify when available
+### 6. Apply the ELI5 presentation pass to the candidate
+
+Before final validation, make first-time understanding the priority using only
+fields and presentation surfaces supported by the selected Archify schema:
+
+- lead with the one-line answer;
+- let the diagram carry most of the explanation;
+- prefer a few large, recognizable elements to dense prose;
+- keep the main path visually obvious;
+- use short labels and reveal detail only where it changes understanding;
+- keep the exact technical term near its plain-language explanation;
+- end with one takeaway when the schema provides an appropriate card or view.
+
+If the selected schema has no appropriate place for supporting prose, keep that
+line in the handoff rather than inventing a field or patching the delivered HTML.
+Do not use a childish voice, mascots, decorative metaphors, or cartoon styling
+unless the user asks for them. "Like I'm five" means no assumed knowledge, not
+reduced intellectual respect.
+
+### 7. Validate and deliver through Archify when available
 
 Locate the installed Archify package and follow its local `SKILL.md`; its schemas,
 commands, and diagnostics are authoritative. The ordinary command sequence is:
@@ -146,26 +166,10 @@ node <archify-root>/bin/archify.mjs visual-check <output.html> --json
 
 Validate after each candidate edit and immediately before delivery. A non-zero
 exit is a failure. Once the final candidate passes, do not edit it before
-`deliver`. A successful delivery receipt proves deterministic artifact checks;
+`deliver`, and never patch the delivered HTML afterward while claiming the same
+receipt. A successful delivery receipt proves deterministic artifact checks;
 `visual-check` proves bounded browser behavior; neither proves that a person or
 image-capable reviewer inspected the composition.
-
-### 7. Apply the ELI5 presentation pass
-
-The final HTML should remain recognizably Archify output while making first-time
-understanding the priority:
-
-- lead with the one-line answer;
-- let the diagram occupy most of the first view;
-- prefer a few large, recognizable elements to dense prose;
-- keep the main path visually obvious;
-- use short labels and reveal detail only where it changes understanding;
-- keep the exact technical term near its plain-language explanation;
-- end with one takeaway, not a dashboard of generic summary cards.
-
-Do not use a childish voice, mascots, decorative metaphors, or cartoon styling
-unless the user asks for them. "Like I'm five" means no assumed knowledge, not
-reduced intellectual respect.
 
 ### 8. Inspect and hand off truthfully
 
