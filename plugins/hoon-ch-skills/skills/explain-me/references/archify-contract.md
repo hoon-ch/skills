@@ -62,8 +62,15 @@ For repository-backed architecture diagrams, use the installed version's
 - Preserve one obvious main path.
 - Preserve meaningful relationship labels.
 - Keep exact product names, identifiers, protocols, paths, and environment names.
-- Use the requested language for authored content; renderer-owned UI may have a
-  more limited locale surface.
+- Authored language is the request/conversation language. Archify `meta.locale`
+  is Viewer UI only (`en` / `zh-CN`); do not treat it as content language.
+- Set `meta.locale` only when authored language is `en` or `zh-CN`. Otherwise
+  omit it and disclose that Viewer chrome falls back to English.
+- Keep title, one-line answer, takeaway, node labels, edge labels, cards, views,
+  and `sources.md` prose in the request language.
+- Keep exact identifiers, commands, table names, and environment names verbatim.
+- Never translate authored copy to English to pass layout. Shorten in the same
+  language or increase `node.width`.
 - Static is the default. Motion is opt-in and requires explicit user request.
 - Use examples for field shape, never for facts or IDs.
 - Let diagnostics name the geometry problem and supported repair.

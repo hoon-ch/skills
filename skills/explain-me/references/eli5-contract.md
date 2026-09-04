@@ -3,6 +3,28 @@
 ELI5 means the reader begins with no vocabulary, context, or mental model. It
 does not mean the reader is literally a child.
 
+## Authored language
+
+Default authored language is the request/conversation language, not Archify
+`meta.locale`. `meta.locale` is Viewer UI only (`en` / `zh-CN`) and is not the
+content language.
+
+Write these in the request language:
+
+- title
+- one-line answer
+- takeaway
+- node labels
+- edge labels
+- cards
+- views
+- `sources.md` prose
+
+Keep exact identifiers, commands, table names, and environment names verbatim.
+A Korean request such as `현재 알람 탐지(발생) 구조에 대해 설명해줘` must produce
+Korean authored copy. Do not translate to English to pass layout; shorten in the
+same language or increase `node.width`.
+
 ## Required frame
 
 Every explainer should make these three answers visible without scrolling through

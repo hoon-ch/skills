@@ -46,6 +46,20 @@ more technical audience. Simplify language, not semantics. Preserve exact produc
 names, code identifiers, commands, protocols, API paths, events, tables, and
 environment names.
 
+Authored language is the request/conversation language, not Archify
+`meta.locale`. `meta.locale` is Viewer UI only (`en` / `zh-CN`). Do not treat it
+as the content language.
+
+- Default every human-facing authored string to the user's request language. A
+  Korean request such as `현재 알람 탐지(발생) 구조에 대해 설명해줘` must produce
+  Korean title, one-line answer, takeaway, node labels, edge labels, cards,
+  views, and `sources.md` prose.
+- Keep exact identifiers, commands, table names, and environment names verbatim.
+- Set `meta.locale` only when the authored language is `en` or `zh-CN`. Otherwise
+  omit it and disclose that Viewer chrome falls back to English.
+- Never translate authored copy into English to satisfy layout. Shorten in the
+  same language or increase `node.width`.
+
 Read `references/eli5-contract.md` before writing the explanatory copy.
 
 ### 2. Choose one Archify diagram type
@@ -130,6 +144,9 @@ Takeaway: <the one fact worth remembering>
 ```
 
 Then map the story to diagram nodes and relationships.
+Draft the one-line answer, main story, takeaway, node labels, edge labels, cards,
+and views in that same authored language. Do not switch to English because
+examples, schemas, or Viewer UI are English.
 
 Use familiar words for human-facing labels and exact technical terms as short
 secondary labels when needed. An analogy is optional. Use one only when it helps
@@ -147,6 +164,8 @@ When an Archify package is available:
    shape, not content.
 3. Set `meta.quality_profile` to `"showcase"` unless the user explicitly asks for
    a dense technical map.
+   Set `meta.locale` only when the authored language is `en` or `zh-CN`.
+   Otherwise omit `meta.locale`.
 4. Start with one obvious main path, short side branches, sparse labels, and at
    most 12 primary nodes.
 5. Let the renderer own automatic placement and routing first. Add manual geometry
@@ -167,6 +186,8 @@ fields and presentation surfaces supported by the selected Archify schema:
 - keep the main path visually obvious;
 - use short labels and reveal detail only where it changes understanding;
 - keep the exact technical term near its plain-language explanation;
+- write every human-facing string in the request language; never translate to
+  English to pass layout — shorten in the same language or increase `node.width`;
 - end with one takeaway when the schema provides an appropriate card or view.
 
 If the selected schema has no appropriate place for supporting prose, keep that
@@ -202,13 +223,17 @@ image-capable reviewer inspected the composition.
 Open the delivered HTML when the environment permits. Check that the first view
 is readable, the main path is obvious, labels are not clipped, and the page still
 works without animation. Check narrow/mobile behavior when the artifact is meant
-to be shared outside a desktop-only context.
+to be shared outside a desktop-only context. Confirm the authored copy is still
+in the request language. Clipped CJK or other non-English labels are a layout
+problem, not a reason to rewrite them in English.
 
 Return:
 
 - the HTML path or link;
 - the selected Archify type;
 - the one-line answer;
+- the authored language, and Viewer English-fallback disclosure when
+  `meta.locale` was omitted;
 - validation and delivery status;
 - browser-evidence status;
 - perceptual-review status;
@@ -228,6 +253,7 @@ In fallback mode:
 - do not claim Archify schema validation, showcase acceptance, delivery receipts,
   or browser evidence that was not produced;
 - keep the artifact static and dependency-free;
+- keep fallback title, labels, cards, and takeaway in the request language;
 - preserve source-grounding and exact technical names subject to the untrusted-
   content, redaction, and publication-boundary rules above;
 - state that the result is a manual fallback rather than validated Archify output;
@@ -260,4 +286,9 @@ Explain a state machine:
 
 ```text
 Use $explain-me to turn this state transition code into a lifecycle explainer with one-sentence framing and a single takeaway.
+```
+Keep authored copy in the request language:
+
+```text
+Use $explain-me. The request is Korean (`현재 알람 탐지(발생) 구조에 대해 설명해줘`), so title, one-line answer, takeaway, node labels, edge labels, cards, views, and sources.md prose stay Korean. Keep exact identifiers verbatim. Omit meta.locale and disclose English Viewer fallback.
 ```
