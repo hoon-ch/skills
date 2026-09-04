@@ -5,6 +5,30 @@ validation/delivery workflow. The installed Archify package is authoritative;
 this reference is the integration contract, not a replacement for its schemas or
 local `SKILL.md`.
 
+## Missing package
+
+Archify is optional for a useful explainer and required for validated HTML,
+receipts, and `visual-check`.
+
+1. Locate an already-installed Archify root and `bin/archify.mjs`. If the CLI
+   runs, use it. Do not ask to install.
+2. If it is missing or cannot run, ask once in the request language whether to
+   install globally now or continue with the manual inline-SVG fallback. Do not
+   say Explain Me cannot run without Archify. Ask at most once per session.
+3. Install only after an explicit yes:
+
+```bash
+npx --yes skills add tt-a1i/archify -g
+```
+
+4. After a successful install, locate the new root, read its local `SKILL.md`,
+   and use that package as authority.
+5. If the user refuses, does not answer, or install/CLI still fails, use
+   Explain Me's Failure Fallback. Do not re-ask.
+
+Never install into the explained repository, mutate shell profiles or global
+environment files, or guess a different package, git URL, or version.
+
 ## Type router
 
 | Type | Primary question |

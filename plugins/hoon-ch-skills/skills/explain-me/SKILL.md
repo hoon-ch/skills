@@ -25,6 +25,11 @@ When Archify is installed, also keep the typed candidate JSON beside the HTML.
 For repository-backed explanations, add a short `sources.md` only when the user
 needs traceability or the handoff would otherwise be hard to verify.
 
+If Archify is missing, ask once whether to install it for the validated
+`validate` / `deliver` / `visual-check` path. Do not install until the user
+explicitly says yes. Refusal, silence, or a failed install uses the manual
+fallback. Do not ask again in the same session.
+
 The picture carries the explanation. Do not prepend a long report. Static output
 is the default. Enable motion only when the user explicitly asks for animation,
 a demo, presentation behavior, or another motion-based output.
@@ -196,7 +201,42 @@ Do not use a childish voice, mascots, decorative metaphors, or cartoon styling
 unless the user asks for them. "Like I'm five" means no assumed knowledge, not
 reduced intellectual respect.
 
-### 7. Validate and deliver through Archify when available
+### 7. Locate Archify, or ask once to install it
+
+Look for an already-installed Archify package and its `bin/archify.mjs`. If it
+is present and the CLI runs, use it. Do not ask to install.
+
+If it is missing or the CLI cannot run, ask once in the request language:
+
+```text
+Archify is not installed. Validated HTML, receipts, and visual-check need it.
+Install Archify globally now (`npx --yes skills add tt-a1i/archify -g`), or
+continue with a manual inline-SVG fallback?
+```
+
+Do not say the skill cannot run without Archify. Keep drafting the ELI5 frame
+and diagram type while waiting. Ask at most once per session.
+
+Install only after an explicit yes. Then:
+
+```bash
+npx --yes skills add tt-a1i/archify -g
+```
+
+After a successful install, locate the new package root, read its local
+`SKILL.md`, and continue with validate / deliver / visual-check.
+
+Never:
+
+- install without that yes;
+- add Archify to the explained repository;
+- mutate shell profiles or global environment files;
+- guess a different package, git URL, or version.
+
+If the user refuses, does not answer, or the install/CLI still fails, use
+Failure Fallback. Do not re-ask.
+
+### 8. Validate and deliver through Archify when available
 
 Locate the installed Archify package and follow its local `SKILL.md`; its schemas,
 commands, and diagnostics are authoritative. The ordinary command sequence is:
@@ -218,7 +258,7 @@ receipt. A successful delivery receipt proves deterministic artifact checks;
 `visual-check` proves bounded browser behavior; neither proves that a person or
 image-capable reviewer inspected the composition.
 
-### 8. Inspect and hand off truthfully
+### 9. Inspect and hand off truthfully
 
 Open the delivered HTML when the environment permits. Check that the first view
 is readable, the main path is obvious, labels are not clipped, and the page still
@@ -243,10 +283,12 @@ Do not claim a check that did not run.
 
 ## Failure Fallback
 
-If Archify is not installed or its CLI cannot run, still produce a self-contained
-HTML file with inline SVG and the same three-part ELI5 frame. Choose one of the
-five Archify types as the semantic model, keep one main story, and use simple
-shapes and connectors sufficient to explain it.
+Use this path when Archify is missing and the user refused or did not answer
+the install question, when the approved install failed, or when an installed
+CLI cannot run. Still produce a self-contained HTML file with inline SVG and
+the same three-part ELI5 frame. Choose one of the five Archify types as the
+semantic model, keep one main story, and use simple shapes and connectors
+sufficient to explain it.
 
 In fallback mode:
 
@@ -287,8 +329,15 @@ Explain a state machine:
 ```text
 Use $explain-me to turn this state transition code into a lifecycle explainer with one-sentence framing and a single takeaway.
 ```
+
 Keep authored copy in the request language:
 
 ```text
 Use $explain-me. The request is Korean (`현재 알람 탐지(발생) 구조에 대해 설명해줘`), so title, one-line answer, takeaway, node labels, edge labels, cards, views, and sources.md prose stay Korean. Keep exact identifiers verbatim. Omit meta.locale and disclose English Viewer fallback.
+```
+
+Offer Archify install once when it is missing:
+
+```text
+Use $explain-me. Archify is not installed, so ask once whether to run `npx --yes skills add tt-a1i/archify -g` for validated delivery. If the user says no, continue with the manual inline-SVG fallback and do not claim Archify receipts.
 ```
