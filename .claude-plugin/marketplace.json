@@ -16,20 +16,15 @@
       "strict": false,
       "skills": [
         "./skills/apply-diataxis",
-        "./skills/claude-code-assist",
-        "./skills/crabbox-proxmox",
         "./skills/design-taste-frontend",
         "./skills/diverging-ui",
         "./skills/explain-me",
-        "./skills/gjc-fleet",
         "./skills/harbor",
-        "./skills/herdr",
         "./skills/nestjs-best-practices",
         "./skills/plane-api",
         "./skills/proxmox-post-install",
         "./skills/repo-web-fsd",
-        "./skills/technical-writing",
-        "./skills/transcript-lecture-notes"
+        "./skills/technical-writing"
       ]
     }
   ]
