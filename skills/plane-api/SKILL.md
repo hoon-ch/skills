@@ -1,6 +1,6 @@
 ---
 name: plane-api
-description: Direct access to the Plane REST API through a generic HTTP client, endpoint catalog, and workflow helpers. Use when Codex needs to inspect or mutate Plane resources through official `/api/v1` endpoints with `X-API-Key` or OAuth bearer auth.
+description: Direct access to the Plane REST API through a generic HTTP client, endpoint catalog, and workflow helpers. Use when the agent needs to inspect or mutate Plane resources through official `/api/v1` endpoints with `X-API-Key` or OAuth bearer auth.
 ---
 
 # Plane API
@@ -66,57 +66,7 @@ python scripts/setup.py \
   --api-key <token>
 ```
 
-Inspect the resolved configuration:
-
-```bash
-python scripts/plane_api.py doctor
-python scripts/plane_api.py doctor --test
-```
-
-Inspect project state before deciding how to write:
-
-```bash
-python scripts/plane_api.py workflow project-scan \
-  --project-id <project-uuid> \
-  --pretty
-```
-
-Probe page API routing without creating anything:
-
-```bash
-python scripts/plane_api.py workflow pages-probe \
-  --project-id <project-uuid> \
-  --pretty
-```
-
-Probe view API routing without creating or changing views:
-
-```bash
-python scripts/plane_api.py workflow views-probe \
-  --project-id <project-uuid> \
-  --pretty
-```
-
-List work item relations:
-
-```bash
-python scripts/plane_api.py invoke work-item-relations list \
-  --project-id <project-uuid> \
-  --work-item-id <work-item-uuid> \
-  --pretty
-```
-
-Create or remove a work item relation:
-
-```bash
-python scripts/plane_api.py workflow work-item-relations-create \
-  --project-id <project-uuid> \
-  --work-item-id <source-work-item-uuid> \
-  --relation-type blocked_by \
-  --related-list <target-work-item-uuid> \
-  --execute \
-  --pretty
-```
+Then confirm the result with the Quick Start `doctor` commands.
 
 ## Core Commands
 
@@ -166,14 +116,6 @@ python scripts/plane_api.py workflow upload-attachment \
   --pretty
 ```
 
-Project scan:
-
-```bash
-python scripts/plane_api.py workflow project-scan \
-  --project-id <project-uuid> \
-  --pretty
-```
-
 ## Supported Scope
 
 The catalog covers official Plane API groups across:
@@ -212,61 +154,20 @@ Use `workflow` dry runs first for mutating flows when you want to inspect the ex
 
 ## Page Content
 
-When creating or updating Plane pages from repository Markdown:
-
-- Convert the source Markdown with `pandoc --from gfm --to html --wrap=none`
-- Send the converted HTML as `description_html`
-- Do not wrap the whole document in `<pre><code>...</code></pre>`
-- Preserve document structure so headings, lists, and tables render as normal Plane content
-- Let only original fenced code blocks remain as code blocks after conversion
-
-Example:
-
-```bash
-pandoc --from gfm --to html --wrap=none ./docs/runbook.md > /tmp/runbook.html
-jq -n \
-  --arg name "Runbook" \
-  --rawfile description_html /tmp/runbook.html \
-  '{name: $name, description_html: $description_html}' \
-  > /tmp/plane-page.json
-python scripts/plane_api.py request \
-  --method POST \
-  --path /api/v1/workspaces/<workspace>/projects/<project-id>/pages/ \
-  --data @/tmp/plane-page.json \
-  --pretty
-```
+When creating or updating Plane pages from repository Markdown, convert it with
+`pandoc --from gfm --to html --wrap=none` and send the HTML as
+`description_html`. Never wrap the whole document in `<pre><code>`. Full
+command and rules: `references/operational-workflows.md` section 4.
 
 ## Project Views
 
-Plane's official public `/api/v1` surface does not reliably expose project view
-management. Before controlling views, run:
-
-```bash
-python scripts/plane_api.py workflow views-probe \
-  --project-id <project-uuid> \
-  --pretty
-```
-
-If the probe reports a public `/api/v1` views route as available, use `request`
-with the matching route and exact payload. That route may be native support or a
-deployment-specific bridge. Use `--set key=value` for scalar JSON fields and
-`--data @payload.json` for structured filters, display properties, or layout
-settings.
-
-If `/api/v1` view routes are not available, state plainly that API-key view
-control is impossible on that deployment unless a bridge is added. App routes are
-session-authenticated internals, not a substitute for API-key automation. Store
-the desired view contract in a work item or repo document instead of retrying the
-same API-key request.
-
-Deployment-specific bridge option:
-
-- re-export the app view endpoint, such as Plane's `IssueViewViewSet`, through a
-  mounted `/api/v1` URL module
-- set `authentication_classes = [APIKeyAuthentication]`
-- expose only the exact collection/detail actions needed for list/create/get/patch/delete
-- verify with `workflow views-probe`, then create, re-read, update, and delete a
-  disposable smoke view
+Plane's public `/api/v1` surface does not reliably expose project view
+management. Run `workflow views-probe` first. If no public view route exists,
+state plainly that API-key view control is impossible on that deployment unless
+a bridge is added, and store the desired view contract in a work item or repo
+document instead of retrying. Routing decisions, payload shape, and the bridge
+option: `references/operational-workflows.md` section 5 and
+`references/project-views.md`.
 
 ## Failure Fallback
 
@@ -312,6 +213,27 @@ Read-only views routing probe:
 ```bash
 python scripts/plane_api.py workflow views-probe \
   --project-id <project-uuid> \
+  --pretty
+```
+
+List work item relations:
+
+```bash
+python scripts/plane_api.py invoke work-item-relations list \
+  --project-id <project-uuid> \
+  --work-item-id <work-item-uuid> \
+  --pretty
+```
+
+Create a work item relation:
+
+```bash
+python scripts/plane_api.py workflow work-item-relations-create \
+  --project-id <project-uuid> \
+  --work-item-id <source-work-item-uuid> \
+  --relation-type blocked_by \
+  --related-list <target-work-item-uuid> \
+  --execute \
   --pretty
 ```
 

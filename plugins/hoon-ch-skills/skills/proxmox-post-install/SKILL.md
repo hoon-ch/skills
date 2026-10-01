@@ -14,37 +14,39 @@ enabled.
 
 ## Quick Start
 
-Prefer the checked script from `tech-lab-infra`:
+Run the bundled script from this skill directory. `<host>` is the Proxmox host
+IP or FQDN reachable over SSH; the remote side must run as root.
 
 ```bash
-cd /Users/hoon-ch/repos/tech-lab-infra
-scripts/proxmox-post-install-baseline.sh --host 192.168.10.12 --check-only
-scripts/proxmox-post-install-baseline.sh --host 192.168.10.12
+scripts/proxmox-post-install-baseline.sh --host <host> --check-only
+scripts/proxmox-post-install-baseline.sh --host <host>
 ```
 
-Use the default SSH key unless the user specifies otherwise:
+For multiple hosts, repeat `--host`:
 
 ```bash
-~/.ssh/dx_pve_ed25519
+scripts/proxmox-post-install-baseline.sh --host <host-a> --host <host-b>
 ```
 
-For multiple hosts:
+SSH settings resolve in this order:
 
-```bash
-scripts/proxmox-post-install-baseline.sh \
-  --host 192.168.10.12 \
-  --host 192.168.10.13
-```
+1. `--user` / `--identity` flags
+2. `PROXMOX_SSH_USER` / `PROXMOX_SSH_IDENTITY` environment variables
+3. Defaults: user `root`, and the normal `ssh` config and agent for keys
+
+When an identity file is set, the script pins it with `IdentitiesOnly=yes` and
+ignores the SSH agent.
 
 ## Workflow
 
-1. Confirm the exact Proxmox host IP or FQDN.
+1. Confirm the exact Proxmox host IP or FQDN and which SSH key to use.
 2. Check current state before mutation:
 
 ```bash
-cd /Users/hoon-ch/repos/tech-lab-infra
 scripts/proxmox-post-install-baseline.sh --host <host> --check-only
 ```
+
+   Use `--dry-run` to print the planned file changes without applying them.
 
 3. If check-only fails because enterprise repositories or popup patches are
    missing, run the baseline:
@@ -56,27 +58,15 @@ scripts/proxmox-post-install-baseline.sh --host <host>
 4. Verify these outcomes:
 
 ```bash
-ssh -i ~/.ssh/dx_pve_ed25519 -o BatchMode=yes -o IdentityAgent=none -o IdentitiesOnly=yes root@<host> \
+ssh -o BatchMode=yes root@<host> \
   'apt-get update && pvesh get /nodes/localhost/subscription --output-format json-pretty && systemctl is-active pveproxy'
 ```
 
 5. Tell the user whether desktop web UI, subscription API, APT repositories,
    and `pveproxy` are all verified.
 
-## First Run Setup
-
-No skill-local setup is required. The operational script lives in:
-
-```bash
-/Users/hoon-ch/repos/tech-lab-infra/scripts/proxmox-post-install-baseline.sh
-```
-
-If the script is missing, inspect the current repo before recreating it:
-
-```bash
-cd /Users/hoon-ch/repos/tech-lab-infra
-rg --files scripts | rg 'proxmox|pve'
-```
+Run `scripts/proxmox-post-install-baseline.sh --help` for all options,
+including `--skip-ui-patch` and `--skip-subscription-api-patch`.
 
 ## Reference Selection
 
@@ -103,23 +93,22 @@ pvesh get /nodes/localhost/subscription --output-format json-pretty
 
 ## Examples
 
-Apply the baseline to `ax-pve-02`:
+Check, then apply, using a dedicated key:
 
 ```bash
-cd /Users/hoon-ch/repos/tech-lab-infra
-scripts/proxmox-post-install-baseline.sh --host 192.168.10.12
+export PROXMOX_SSH_IDENTITY=~/.ssh/<proxmox-key>
+scripts/proxmox-post-install-baseline.sh --host pve-01.example.lan --check-only
+scripts/proxmox-post-install-baseline.sh --host pve-01.example.lan
 ```
 
-Apply it to `ax-pve-03`:
+Preview changes on two hosts without mutating them:
 
 ```bash
-cd /Users/hoon-ch/repos/tech-lab-infra
-scripts/proxmox-post-install-baseline.sh --host 192.168.10.13
+scripts/proxmox-post-install-baseline.sh --host <host-a> --host <host-b> --dry-run
 ```
 
-Verify both hosts:
+Verify both hosts after a Proxmox package upgrade:
 
 ```bash
-scripts/proxmox-post-install-baseline.sh --host 192.168.10.12 --check-only
-scripts/proxmox-post-install-baseline.sh --host 192.168.10.13 --check-only
+scripts/proxmox-post-install-baseline.sh --host <host-a> --host <host-b> --check-only
 ```

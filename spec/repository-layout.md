@@ -82,8 +82,9 @@ Rules:
 
 The mirror is a real directory because marketplace packaging includes the plugin
 root, not symlink targets outside that root. The validator fails if the mirror is
-missing, is a symlink, contains extra files, misses source files, or differs
-byte-for-byte from `skills/`.
+missing, is a symlink, contains top-level files or extra files, misses source
+files, or differs byte-for-byte from the skill folders in `skills/`. Top-level
+files in `skills/` such as `AGENTS.md` are maintainer notes and are not mirrored.
 
 ## Persistent Setup Pattern
 

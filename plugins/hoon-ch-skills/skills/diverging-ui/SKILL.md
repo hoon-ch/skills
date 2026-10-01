@@ -150,6 +150,10 @@ one, move toward a more typical direction until the issue is resolved.
 - If a model cannot produce useful probabilities, keep the `probability` field
   and ask for a stricter relative-to-full-distribution definition before using
   weaker labels such as "typical" or "novel".
+- If the work is specifically a landing page, portfolio, or marketing-site
+  redesign that needs design-system selection and an anti-AI-tell pre-flight
+  check, prefer the `design-taste-frontend` skill; use this skill for the
+  direction-sampling pass on other UI surfaces.
 
 ## Examples
 

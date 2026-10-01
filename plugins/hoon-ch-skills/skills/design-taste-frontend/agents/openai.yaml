@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design Taste Frontend"
+  short_description: "Anti-slop landing pages, portfolios, and redesigns with a strict pre-flight check"
+  default_prompt: "Use $design-taste-frontend to read the brief, set the design dials, pick a real design system, and build a landing page or redesign that passes the pre-flight check."

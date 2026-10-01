@@ -10,8 +10,13 @@ SOURCE = REPO_ROOT / "skills"
 TARGET = REPO_ROOT / "plugins" / "hoon-ch-skills" / "skills"
 
 
-def ignored(path: Path) -> bool:
+def is_noise(path: Path) -> bool:
     return "__pycache__" in path.parts or path.suffix == ".pyc" or path.name == ".DS_Store"
+
+
+def is_skill_content(path: Path) -> bool:
+    # Top-level files such as skills/AGENTS.md are maintainer notes, not skills.
+    return not is_noise(path) and not (path.parent == SOURCE and path.is_file())
 
 
 def is_tracked(path: Path) -> bool:
@@ -31,11 +36,11 @@ def remove_tracked_extras() -> None:
     source_paths = {
         path.relative_to(SOURCE)
         for path in SOURCE.rglob("*")
-        if not ignored(path)
+        if is_skill_content(path)
     }
     for path in sorted(TARGET.rglob("*"), reverse=True):
         relative = path.relative_to(TARGET)
-        if ignored(path) or relative in source_paths or not is_tracked(path):
+        if is_noise(path) or relative in source_paths or not is_tracked(path):
             continue
         if path.is_dir():
             path.rmdir()
@@ -46,7 +51,7 @@ def remove_tracked_extras() -> None:
 def sync_source_tree() -> None:
     TARGET.mkdir(parents=True, exist_ok=True)
     for source_path in SOURCE.rglob("*"):
-        if ignored(source_path):
+        if not is_skill_content(source_path):
             continue
         relative = source_path.relative_to(SOURCE)
         target_path = TARGET / relative

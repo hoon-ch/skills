@@ -72,4 +72,4 @@ Use this skill to refactor a NestJS service that has circular dependencies and t
 Use this skill to add e2e tests for a NestJS REST endpoint using the project's existing test setup.
 ```
 
-Source: https://github.com/Kadajett/agent-nestjs-skills, version 1.1.0.
+Adapted from https://github.com/Kadajett/agent-nestjs-skills (vendored snapshot of version 1.1.0; upstream may have moved on).

@@ -29,14 +29,9 @@ npx skills add hoon-ch/skills -g \
   --skill repo-web-fsd \
   --skill nestjs-best-practices \
   --skill harbor \
-  --skill herdr \
   --skill proxmox-post-install \
   --skill apply-diataxis \
   --skill technical-writing \
-  --skill transcript-lecture-notes \
-  --skill claude-code-assist \
-  --skill crabbox-proxmox \
-  --skill gjc-fleet \
   --skill design-taste-frontend \
   --skill explain-me \
   --yes
@@ -67,15 +62,10 @@ All three install surfaces expose the same published skills from `skills/`.
 | `repo-web-fsd` | You need repository-specific guidance for `apps/web` placement, FSD boundaries, or design-system ownership decisions. |
 | `nestjs-best-practices` | You are writing, reviewing, or refactoring NestJS modules, controllers, services, dependency injection, guards, DTOs, validation, database access, testing, microservices, deployment, or security-sensitive code. |
 | `harbor` | You need Harbor registry operations guidance for Kubernetes/GitOps, scanners, robot accounts, replication, or ArgoCD drift. |
-| `herdr` | You are running inside a Herdr session (`HERDR_ENV=1`) and need to inspect or control panes, tabs, workspaces, worktree workspaces, background commands, or another coding agent. |
 | `proxmox-post-install` | You need a Proxmox VE homelab post-install baseline for no-subscription repositories, popup suppression, and APT verification. |
 | `apply-diataxis` | You need to classify documentation with Diátaxis, separate mixed modes, audit quality, or design need-oriented documentation architecture. |
 | `technical-writing` | You need to create, revise, or review developer and end-user documentation, especially Korean-first technical writing. |
-| `transcript-lecture-notes` | You need to turn video or audio transcripts into blog-style Markdown notes while keeping SRT/VTT/TXT/Markdown transcripts as linked source files. |
-| `claude-code-assist` | You need Codex to use Claude Code CLI for focused reviews, source-backed research, second opinions, bounded delegation, or review evidence capture. |
-| `crabbox-proxmox` | You need an isolated Proxmox-backed remote-dev VM to build, run, debug, or browser-prove a task, including adjacent infrastructure such as Compose, databases, and queues. |
 | `design-taste-frontend` | You are building or redesigning a landing page, portfolio, or marketing site and need to avoid templated, obviously-AI output. |
-| `gjc-fleet` | You are inside a Herdr session (`HERDR_ENV=1`) and need to orchestrate many GJC worker sessions across a wide surface, partitioning the work so parallel workers cannot conflict. |
 | `explain-me` | You need to turn a technical topic, codebase, API interaction, data flow, or lifecycle into a dead-simple, picture-first HTML explainer using ELI5 framing and Archify's typed, validated diagrams. |
 
 ## Maintainer Workflow
@@ -114,7 +104,7 @@ Expected results:
 
 - `validate_repo.py` prints `Repository is valid!`
 - `npx skills add . -g --list` lists only the published skills under `skills/`
-- `plugins/hoon-ch-skills/skills` matches `skills/` byte-for-byte
+- `plugins/hoon-ch-skills/skills` matches the skill folders in `skills/` byte-for-byte
 
 ### What Not To Edit
 
@@ -125,26 +115,11 @@ Expected results:
   Keep this README focused on installation, published skills, and the common
   maintainer path.
 
-## Documentation And Review Evidence
-
-Skills in this registry should leave enough documentation for another agent to
-use them without reading repository history. This is especially important for
-orchestration skills such as `claude-code-assist`, where the skill coordinates
-another model or CLI.
-
-For review, research, and delegation workflows:
-
-- document the exact command shape, model default, permission mode, and fallback
-- keep prompt templates in `references/` rather than burying them in prose
-- capture review output when it drives implementation decisions
-- keep generated review artifacts out of git with `.gitignore`
-- record validation commands in the skill or repository docs
-
 ## What's In This Repository
 
 The repository is a source for installable agent skills, not a prompt dump.
-Install from it when you want the current Plane, UI divergence, `apps/web` FSD,
-Harbor operations, transcript-derived lecture-note, Claude Code review/research,
+Install from it when you want the current Plane, UI divergence, frontend design,
+`apps/web` FSD, NestJS, Harbor operations, Proxmox post-install, documentation,
 or ELI5 + Archify picture-explainer guidance available in Codex or Claude Code.
 
 ```text

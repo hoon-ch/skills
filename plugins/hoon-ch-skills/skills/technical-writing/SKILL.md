@@ -60,6 +60,8 @@ Use this default output shape when the user does not specify one:
   resource names, API terms, and product names exactly.
 - If a review finds structural problems, lead with concrete findings and
   suggested fixes before rewriting.
+- If the task needs Diátaxis classification, splitting mixed-mode pages, or
+  documentation-set architecture, prefer the `apply-diataxis` skill.
 
 ## Examples
 

@@ -1,9 +1,5 @@
 # PROJECT KNOWLEDGE BASE
 
-**Generated:** 2026-06-09
-**Commit:** ad9c249
-**Branch:** detached HEAD
-
 This repository is a `skills.sh`-first skill registry. Treat `skills/` as the
 published surface and keep user-facing README content separate from maintenance
 rules.
@@ -21,8 +17,7 @@ the same skills through `skills.sh`, the Claude manifest, and a Codex plugin.
 ├── plugins/hoon-ch-skills/    # Codex plugin package and generated skill mirror
 ├── scripts/                   # scaffold, sync, and validation helpers
 ├── spec/                      # repository layout and quality bar
-├── template/                  # starter scaffold; not installable
-└── docs/superpowers/          # historical specs and plans
+└── template/                  # starter scaffold; not installable
 ```
 
 ## Where To Look
@@ -45,24 +40,6 @@ the same skills through `skills.sh`, the Claude manifest, and a Codex plugin.
 | `main` | function | `scripts/sync_codex_plugin_skills.py` | Synchronizes the Codex plugin skill mirror without deleting untracked user work. |
 | `render_skill` | function | `scripts/create_skill.py` | Generates the default `SKILL.md` scaffold. |
 | `REQUIRED_SKILL_SECTIONS` | constant | `scripts/validate_repo.py` | Required headings for every published skill. |
-
-## Installed Skill Packs
-
-Gstack is also installed and should be used selectively when its workflow is a
-better fit than the default direct Codex flow.
-
-Prefer Gstack for product ideation (`/gstack-office-hours`), structured review
-(`/gstack-review`), browser QA (`/gstack-browse`, `/gstack-qa`,
-`/gstack-qa-only`), visual audit (`/gstack-design-review`), security review
-(`/gstack-cso`), and release follow-through (`/gstack-ship`,
-`/gstack-document-release`, `/gstack-retro`).
-
-Use Gstack for opinionated review, QA, design, security, and shipping workflows.
-Do not force Gstack for small direct edits or simple one-step tasks.
-
-Do not manually edit generated Gstack files under `~/.codex/skills/gstack*` or
-project-local `.agents/skills/gstack*`. Refresh Gstack from its repository and
-rerun `./setup --host codex` when needed.
 
 ## Authoring A Skill
 
@@ -119,10 +96,8 @@ Codex GitHub marketplace installation packages only the selected plugin root and
 does not include a symlink target outside that root. Do not manually edit the
 mirrored plugin skills; update `skills/` and rerun the sync script instead. The
 validator enforces that the mirror is present and byte-for-byte synchronized.
-
-Some older docs under `docs/superpowers/` and `spec/repository-layout.md` still
-mention a symlink mirror. Current behavior is a real mirrored directory; trust
-`scripts/sync_codex_plugin_skills.py`, `scripts/validate_repo.py`, and this file.
+Only skill folders are mirrored; top-level files such as `skills/AGENTS.md` stay
+out of the plugin package.
 
 ## Validation
 

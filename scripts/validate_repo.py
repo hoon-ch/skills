@@ -67,6 +67,7 @@ def files_by_relative_path(root: Path) -> dict[Path, Path]:
         path.relative_to(root): path
         for path in root.rglob("*")
         if path.is_file()
+        and path.parent != root
         and "__pycache__" not in path.parts
         and path.suffix != ".pyc"
     }
@@ -83,6 +84,9 @@ def validate_codex_plugin_skill_mirror(errors: list[str]) -> None:
     if not mirror.is_dir():
         errors.append(f"{mirror}: must be a directory")
         return
+    top_level_files = sorted(path.name for path in mirror.iterdir() if path.is_file())
+    if top_level_files:
+        errors.append(f"{mirror}: must contain only skill folders, found files: {', '.join(top_level_files)}")
 
     source_files = files_by_relative_path(SKILLS_DIR)
     mirror_files = files_by_relative_path(mirror)

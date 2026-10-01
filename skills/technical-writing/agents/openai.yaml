@@ -1,0 +1,4 @@
+interface:
+  display_name: "Technical Writing"
+  short_description: "Source-grounded, Korean-first developer and end-user documentation"
+  default_prompt: "Use $technical-writing to write, revise, or review this documentation from verified sources for the intended reader."

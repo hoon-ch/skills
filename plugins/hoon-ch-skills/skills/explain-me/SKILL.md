@@ -341,3 +341,5 @@ Offer Archify install once when it is missing:
 ```text
 Use $explain-me. Archify is not installed, so ask once whether to run `npx --yes skills add tt-a1i/archify -g` for validated delivery. If the user says no, continue with the manual inline-SVG fallback and do not claim Archify receipts.
 ```
+
+Upstream attribution and licenses for ELI5 and Archify: `THIRD_PARTY_NOTICES.md`.
