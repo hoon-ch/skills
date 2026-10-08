@@ -34,6 +34,7 @@ npx skills add hoon-ch/skills -g \
   --skill technical-writing \
   --skill design-taste-frontend \
   --skill explain-me \
+  --skill ui-craft \
   --yes
 ```
 
@@ -58,6 +59,7 @@ npx skills add hoon-ch/skills -g --list
 | Skill | 언제 쓰나 |
 | --- | --- |
 | `plane-api` | Plane Cloud나 self-hosted Plane에서 REST API를 직접 호출하거나, route probing, project scan, workflow helper가 필요할 때 씁니다. |
+| `ui-craft` | web UI를 만들거나 다듬을 때 진입점으로 씁니다. 맞는 디자인 skill과 component catalog로 라우팅하고, design system을 먼저 확정하게 하며, 렌더링된 결과를 screenshot으로 검증합니다. |
 | `diverging-ui` | frontend UI를 만들거나 다시 설계할 때 가장 흔한 첫 번째 디자인으로 수렴하지 않도록 방향을 넓힐 때 씁니다. |
 | `repo-web-fsd` | `apps/web` 배치, FSD boundary, design-system ownership을 판단할 때 씁니다. |
 | `nestjs-best-practices` | NestJS module, controller, service, dependency injection, guard, DTO, validation, database access, testing, microservice, deployment, security 코드를 작성하거나 리뷰/리팩터링할 때 씁니다. |

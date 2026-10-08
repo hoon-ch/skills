@@ -24,7 +24,8 @@
         "./skills/plane-api",
         "./skills/proxmox-post-install",
         "./skills/repo-web-fsd",
-        "./skills/technical-writing"
+        "./skills/technical-writing",
+        "./skills/ui-craft"
       ]
     }
   ]

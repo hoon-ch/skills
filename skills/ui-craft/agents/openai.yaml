@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Craft"
+  short_description: "Routes UI work to the right design skill, gates on the design system, and verifies with screenshots"
+  default_prompt: "Use $ui-craft to route this UI task, pass the design-system gate, build with tokens only, and verify the rendered result at desktop and mobile widths before reporting done."

@@ -154,6 +154,8 @@ one, move toward a more typical direction until the issue is resolved.
   redesign that needs design-system selection and an anti-AI-tell pre-flight
   check, prefer the `design-taste-frontend` skill; use this skill for the
   direction-sampling pass on other UI surfaces.
+- This skill produces a direction, not a verified build. Route the build
+  through `ui-craft` for the design-system gate and rendered visual QA.
 
 ## Examples
 

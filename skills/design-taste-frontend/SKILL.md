@@ -55,6 +55,7 @@ live in `references/`; load only the file the current stage needs:
 - **Redesign with no usable brand assets**: fall back to the audit protocol in Section 11 before proposing an overhaul.
 - **Pre-flight check fails**: fix the flagged item; do not ship with a known Section 9 tell.
 - **Surface is a dashboard, tool, game, or product component**: this skill is out of scope (Section 13); use `diverging-ui` to widen the design direction instead.
+- **Design-system gate and rendered visual QA**: this skill owns taste and the pre-flight check; `ui-craft` is the UI entry router and owns the token gate and screenshot verification. When both apply, route through `ui-craft` and load this skill from it.
 
 ## Examples
 

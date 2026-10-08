@@ -34,6 +34,7 @@ npx skills add hoon-ch/skills -g \
   --skill technical-writing \
   --skill design-taste-frontend \
   --skill explain-me \
+  --skill ui-craft \
   --yes
 ```
 
@@ -58,6 +59,7 @@ All three install surfaces expose the same published skills from `skills/`.
 | Skill | Use when |
 | --- | --- |
 | `plane-api` | You need direct Plane REST API access, route probing, project scans, or workflow helpers for Plane Cloud or self-hosted Plane. |
+| `ui-craft` | You are building, restyling, or polishing web UI and want one entry point that routes to the right design skill or component catalog, enforces the design system, and verifies the rendered result with screenshots. |
 | `diverging-ui` | You are creating or redesigning frontend UI and need to avoid the most generic first-pass design direction. |
 | `repo-web-fsd` | You need repository-specific guidance for `apps/web` placement, FSD boundaries, or design-system ownership decisions. |
 | `nestjs-best-practices` | You are writing, reviewing, or refactoring NestJS modules, controllers, services, dependency injection, guards, DTOs, validation, database access, testing, microservices, deployment, or security-sensitive code. |
