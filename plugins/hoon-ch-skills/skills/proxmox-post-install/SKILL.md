@@ -22,6 +22,8 @@ scripts/proxmox-post-install-baseline.sh --host <host> --check-only
 scripts/proxmox-post-install-baseline.sh --host <host>
 ```
 
+Apply installs an APT hook that reapplies the popup patches after package upgrades.
+
 For multiple hosts, repeat `--host`:
 
 ```bash
@@ -59,11 +61,14 @@ scripts/proxmox-post-install-baseline.sh --host <host>
 
 ```bash
 ssh -o BatchMode=yes root@<host> \
-  'apt-get update && pvesh get /nodes/localhost/subscription --output-format json-pretty && systemctl is-active pveproxy'
+  'apt-get update && pvesh get /nodes/localhost/subscription --output-format json-pretty && pvesh get /nodes --output-format json-pretty && systemctl is-active pveproxy pvestatd'
 ```
 
-5. Tell the user whether desktop web UI, subscription API, APT repositories,
-   and `pveproxy` are all verified.
+   Check that each online node has a non-empty `level`. The node level can take
+   one `pvestatd` cycle to update.
+
+5. Tell the user whether the web UI, subscription API, node levels, APT
+   repositories, and services are verified.
 
 Run `scripts/proxmox-post-install-baseline.sh --help` for all options,
 including `--skip-ui-patch` and `--skip-subscription-api-patch`.
@@ -81,15 +86,10 @@ patched, or rollback is needed.
   still active or a stale source file remains.
 - If desktop popup remains after a successful patch, restart `pveproxy` and ask
   the user to hard-refresh the browser or clear the browser cache.
-- If a Proxmox VE 9 mobile popup remains, remember that the Yew-based mobile UI
-  is a separate WASM frontend and is not patched by this baseline. Verify the API
-  directly, but do not report mobile popup suppression as guaranteed:
-
-```bash
-pvesh get /nodes/localhost/subscription --output-format json-pretty
-```
-
-- If Proxmox package upgrades restore files, rerun the baseline script.
+- If the Proxmox VE 9 mobile popup remains, patch every online node in the
+  cluster. The mobile UI checks the subscription level of every online node.
+- The APT hook reapplies the patches after upgrades. If it fails silently, run
+  `--check-only`, then re-run apply.
 
 ## Examples
 
