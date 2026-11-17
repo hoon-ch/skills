@@ -1,0 +1,11 @@
+# Service icons fetch_icons.py downloads into icons/ (local name → homarr-labs/dashboard-icons name).
+# glyph-*.svg are already in icons/. Prefer *-light variants: the canvas is dark.
+map:
+  opnsense: opnsense
+  mikrotik-l: mikrotik-light
+  unifi: unifi
+  proxmox: proxmox
+  truenas: truenas-scale
+  homeassistant: home-assistant
+  jellyfin: jellyfin
+recolor: {}

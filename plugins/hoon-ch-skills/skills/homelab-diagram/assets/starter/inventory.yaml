@@ -1,0 +1,78 @@
+# Everything the picture shows. build.py only decides where it goes.
+# Replace the example lab below with facts you verified; write n/a for what nobody documented.
+# Rows are column-aligned for reading, so extra spaces after commas/colons are intended.
+# yamllint disable rule:commas rule:colons
+
+meta:
+  title: "Example Homelab"
+  date: "January 2027"
+  watermark: "example-lab"
+  domain: "example.net"             # real domain; the default render replaces it
+  public_ip: "203.0.113.7"          # real public IP; the default render replaces it
+
+redact:
+  domain_placeholder: "redacted.net"
+  public_ip_placeholder: "x.x.x.x"
+
+vlans:   # key → color; order = Networks table order
+  - {key: "10",  tag: "VLAN 10", name: LAN,  subnet: "10.0.10.0/24", color: "#58a6ff", note: "trusted clients"}
+  - {key: "20",  tag: "VLAN 20", name: SRV,  subnet: "10.0.20.0/24", color: "#f0883e", note: "servers and guests"}
+  - {key: "99",  tag: "VLAN 99", name: MGMT, subnet: "10.0.99.0/24", color: "#e3b341", note: "switch, AP, hypervisor management"}
+  - {key: "wan", tag: "WAN",     name: ISP,  subnet: "dynamic IPv4", color: "#f85149", note: "1 Gbps fiber"}
+
+firewall:
+  name: "fw-01"
+  type: "firewall"
+  model: "OPNsense on a 4-port mini PC"
+  ip: "10.0.99.1"
+  internal: ".1 in every VLAN"
+  os: "OPNsense 26.1"
+
+switch:
+  name: "sw-01"
+  type: "switch"
+  model: "MikroTik CRS310-8G+2S+"
+  ip: "10.0.99.2"
+  os: "RouterOS 7.20 · L2 only"
+  # sfp: SFP+ cage · untagged = access VLAN · tagged = trunk VLANs · speed = negotiated link
+  # `to` names a device key, the server key, or `firewall` (its uplink is drawn straight up)
+  ports:
+    - {name: ether1, to: desk,   untagged: "10",                      speed: "2.5G"}
+    - {name: ether2, to: ap,     untagged: "99", tagged: ["10"],      speed: "1G"}
+    - {name: sfp1,   to: server, untagged: "99", tagged: ["10", "20"], speed: "10G", sfp: true}
+    - {name: sfp2,   to: firewall, untagged: "99", tagged: ["10", "20"], speed: "10G", sfp: true}
+
+devices:   # cabled to the switch; `key` matches switch.ports[].to
+  - {key: desk, name: "desk",   type: "workstation",  model: "custom build · Ryzen 7", icons: [glyph-cpu], vlan: "10", ip: "10.0.10.20", os: "Fedora 41"}
+  - {key: ap,   name: "ap-01",  type: "access point", model: "UniFi U7 Lite", icons: [unifi], vlan: "99", ip: "10.0.99.10", os: "SSIDs: home → 10"}
+
+server:
+  key: server
+  name: "pve-01"
+  type: "Proxmox VE"
+  model: "Minisforum MS-01"
+  ip: "10.0.99.5"
+  os: "PVE 9.1"
+  hw:
+    - {icon: glyph-cpu, label: "CPU",     value: "i9-13900H",       sub: "14 cores · 20 threads"}
+    - {icon: glyph-ram, label: "MEMORY",  value: "96 GB DDR5",      sub: ""}
+    - {icon: glyph-ssd, label: "NVMe",    value: "2× 2 TB",         sub: "ZFS mirror"}
+    - {icon: glyph-nic, label: "NETWORK", value: "2× 10G SFP+",     sub: "VLAN-aware bridge"}
+  guests:
+    - {id: 101, kind: VM, name: "truenas",   icon: truenas,       vlan: "20", ip: ".20.10", spec: "4c · 16G", note: "file shares"}
+    - {id: 102, kind: VM, name: "home-assistant", icon: homeassistant, vlan: "20", ip: ".20.11", spec: "2c · 4G", note: "automation"}
+    - {id: 103, kind: CT, name: "jellyfin",  icon: jellyfin,      vlan: "20", ip: ".20.12", spec: "4c · 8G", note: "media"}
+
+labels:   # fixed captions, so a translated inventory changes every visible word
+  subtitle: "starter diagram · replace with your lab"
+  internet: "Internet"
+  networks: "Networks"
+  legend: "Legend"
+  hardware: "HARDWARE"
+  guests: "VMs & CONTAINERS"
+  legend_rows:
+    trunk: "802.1Q trunk (tagged VLANs)"
+    access: "access link, colored by VLAN"
+    wan: "WAN"
+    speed: "line width = link speed"
+    ticks: "port VLANs (tall = untagged)"

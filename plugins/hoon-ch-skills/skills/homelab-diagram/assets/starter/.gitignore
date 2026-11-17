@@ -1,0 +1,5 @@
+out/
+__pycache__/
+# downloaded by fetch_icons.py; only the own glyphs are committed
+icons/*
+!icons/glyph-*.svg
