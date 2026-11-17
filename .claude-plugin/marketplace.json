@@ -20,7 +20,7 @@
         "./skills/diverging-ui",
         "./skills/explain-me",
         "./skills/harbor",
-        "./skills/homelab-diagram",
+        "./skills/infra-diagram",
         "./skills/nestjs-best-practices",
         "./skills/plane-api",
         "./skills/proxmox-post-install",

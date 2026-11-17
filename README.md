@@ -30,7 +30,7 @@ npx skills add hoon-ch/skills -g \
   --skill nestjs-best-practices \
   --skill harbor \
   --skill proxmox-post-install \
-  --skill homelab-diagram \
+  --skill infra-diagram \
   --skill apply-diataxis \
   --skill technical-writing \
   --skill design-taste-frontend \
@@ -66,7 +66,7 @@ All three install surfaces expose the same published skills from `skills/`.
 | `nestjs-best-practices` | You are writing, reviewing, or refactoring NestJS modules, controllers, services, dependency injection, guards, DTOs, validation, database access, testing, microservices, deployment, or security-sensitive code. |
 | `harbor` | You need Harbor registry operations guidance for Kubernetes/GitOps, scanners, robot accounts, replication, or ArgoCD drift. |
 | `proxmox-post-install` | You need a Proxmox VE homelab post-install baseline for no-subscription repositories, popup suppression, and APT verification. |
-| `homelab-diagram` | You need an r/homelab-style infrastructure diagram (SVG/PNG, optional Excalidraw) with VLANs, switch ports, link speeds, hypervisor hardware, guests, or Kubernetes, built from a YAML inventory. |
+| `infra-diagram` | You need an r/homelab-style infrastructure diagram (SVG/PNG, optional Excalidraw) with VLANs, switch ports, link speeds, hypervisor hardware, guests, or Kubernetes, built from a YAML inventory. |
 | `apply-diataxis` | You need to classify documentation with Diátaxis, separate mixed modes, audit quality, or design need-oriented documentation architecture. |
 | `technical-writing` | You need to create, revise, or review developer and end-user documentation, especially Korean-first technical writing. |
 | `design-taste-frontend` | You are building or redesigning a landing page, portfolio, or marketing site and need to avoid templated, obviously-AI output. |

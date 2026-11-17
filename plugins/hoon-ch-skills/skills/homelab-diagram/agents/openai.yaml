@@ -1,4 +1,0 @@
-interface:
-  display_name: "Homelab Diagram"
-  short_description: "Draw r/homelab-style infrastructure diagrams from a YAML inventory"
-  default_prompt: "Use $homelab-diagram to draw an infrastructure diagram of my lab."

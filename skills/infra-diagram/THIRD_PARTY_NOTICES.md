@@ -1,6 +1,6 @@
 # Third-party notices
 
-The homelab-diagram skill adapts the rendering approach of Goblinmine/homelab-diagram:
+The infra-diagram skill adapts the rendering approach of Goblinmine/homelab-diagram:
 the dark r/homelab card style, folder-tab device cards, port VLAN ticks, line width as
 link speed, and the trunk cable look. `scripts/hd.py` is a parameterised rewrite of its
 `build.py` primitives, and `assets/glyphs/glyph-*.svg` are copied unchanged.

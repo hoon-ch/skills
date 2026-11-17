@@ -32,7 +32,7 @@ def download(name, tries=3):
     """Fetch one icon from the first source that delivers it; retry with a short pause."""
     last = None
     for url in SOURCES:
-        req = urllib.request.Request(url.format(name), headers={"User-Agent": "homelab-diagram-skill/1.0"})
+        req = urllib.request.Request(url.format(name), headers={"User-Agent": "infra-diagram-skill/1.0"})
         for attempt in range(tries):
             try:
                 with urllib.request.urlopen(req, timeout=20) as r:

@@ -1,9 +1,9 @@
 ---
-name: homelab-diagram
+name: infra-diagram
 description: Draw r/homelab-style infrastructure diagrams (SVG/PNG, optional Excalidraw) from a YAML inventory and a hand-placed Python layout. Use when asked to diagram a homelab, lab, server rack, or office network with VLANs, switch ports, link speeds, hypervisor hardware, VMs/containers, firewalls, or Kubernetes, or to update, translate, scope down, redact, or export such a diagram.
 ---
 
-# Homelab Diagram
+# Infra Diagram
 
 Use this skill when the user wants a detailed, poster-style picture of real
 infrastructure: internet edge, firewall, switches with per-port VLANs, cables

@@ -209,7 +209,7 @@ def convert(svg_path):
             e = base("image", num(a, "x"), num(a, "y"), num(a, "width"), num(a, "height"))
             e.update({"fileId": fid, "status": "saved", "scale": [1, 1], "crop": None})
             elements.append(e)
-    return {"type": "excalidraw", "version": 2, "source": "homelab-diagram skill · to_excalidraw.py",
+    return {"type": "excalidraw", "version": 2, "source": "infra-diagram skill · to_excalidraw.py",
             "elements": elements,
             "appState": {"viewBackgroundColor": BG, "gridSize": None, "theme": "light"},
             "files": files}
