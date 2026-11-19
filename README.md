@@ -77,6 +77,11 @@ All three install surfaces expose the same published skills from `skills/`.
 Use this section when you are changing the registry itself rather than
 installing skills from it.
 
+Skill folders under `skills/` are copied from the maintainer's private source repository. Each sync overwrites
+`skills/`, the `all-skills` list in `.claude-plugin/marketplace.json`, and the plugin mirror, so a change made
+there directly is lost on the next sync. Open an issue to suggest a skill change. README, `AGENTS.md`,
+`scripts/`, and the other manifests are still edited in this repository.
+
 ### Add Or Update A Skill
 
 Create a new skill scaffold from the repository root:

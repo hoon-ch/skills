@@ -13,7 +13,7 @@ the same skills through `skills.sh`, the Claude manifest, and a Codex plugin.
 
 ```text
 .
-├── skills/                    # source of truth for published skills
+├── skills/                    # published skills, synced from the private source
 ├── plugins/hoon-ch-skills/    # Codex plugin package and generated skill mirror
 ├── scripts/                   # scaffold, sync, and validation helpers
 ├── spec/                      # repository layout and quality bar
@@ -85,7 +85,8 @@ Codex plugin metadata lives in:
 - `plugins/hoon-ch-skills/.codex-plugin/plugin.json`
 - `plugins/hoon-ch-skills/skills`
 
-Treat `skills/` as the source of truth. Keep `plugins/hoon-ch-skills/skills` as
+`skills/` is a copy of the maintainer's private source repository: a sync overwrites it, the `all-skills`
+list in `.claude-plugin/marketplace.json`, and the mirror. Do not edit skill content here. Keep `plugins/hoon-ch-skills/skills` as
 a generated mirror created by:
 
 ```bash

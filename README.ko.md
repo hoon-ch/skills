@@ -77,6 +77,11 @@ npx skills add hoon-ch/skills -g --list
 이 섹션은 skill을 설치하는 사용자가 아니라, 이 registry 자체를 수정하는
 maintainer를 위한 절차입니다.
 
+`skills/` 아래 skill 폴더는 maintainer의 private 원본 저장소에서 복사합니다. 동기화할 때마다 `skills/`,
+`.claude-plugin/marketplace.json`의 `all-skills` 목록, plugin mirror를 덮어쓰므로 여기서 직접 고친 내용은
+다음 동기화 때 사라집니다. skill 수정 제안은 issue로 남겨 주세요. README, `AGENTS.md`, `scripts/`, 다른
+manifest는 계속 이 저장소에서 고칩니다.
+
 ### Skill 추가 또는 수정
 
 새 skill은 저장소 root에서 scaffold를 만듭니다.

@@ -1,7 +1,7 @@
 # Published Skills
 
-`skills/` is the source of truth for installable skill content. Make user-facing
-skill changes here, then refresh the Codex plugin mirror from the repo root.
+`skills/` is a copy of the maintainer's private source repository. A sync overwrites
+every skill folder here, so do not edit skill content in this tree.
 
 ## Where To Look
 
